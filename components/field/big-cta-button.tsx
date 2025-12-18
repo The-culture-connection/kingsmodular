@@ -1,18 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, ButtonProps } from '@/components/ui/button'
 
 export interface BigCTAButtonProps extends Omit<ButtonProps, 'size'> {
-  icon?: LucideIcon
+  icon?: React.ReactNode
   description?: string
   fullWidth?: boolean
 }
 
 export function BigCTAButton({
-  icon: Icon,
+  icon,
   description,
   fullWidth = true,
   className,
@@ -29,7 +28,7 @@ export function BigCTAButton({
       )}
       {...props}
     >
-      {Icon && <Icon className="h-8 w-8" />}
+      {icon && <div className="h-8 w-8 flex items-center justify-center">{icon}</div>}
       <div className="flex flex-col items-center gap-1">
         <span className="text-lg font-semibold">{children}</span>
         {description && (

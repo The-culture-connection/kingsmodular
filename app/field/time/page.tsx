@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import { BigCTAButton } from '@/components/field/big-cta-button'
 import { Button } from '@/components/ui/button'
@@ -61,7 +63,7 @@ export default function FieldTimePage() {
 
         <BigCTAButton
           type="submit"
-          icon={Check}
+          icon={<Check className="h-8 w-8" />}
           variant="primary"
         >
           Submit Time Entry

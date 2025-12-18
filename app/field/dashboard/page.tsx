@@ -1,3 +1,7 @@
+'use client'
+
+export const dynamic = 'force-dynamic'
+
 import { BigCTAButton } from '@/components/field/big-cta-button'
 import { Clock, MapPin, FileText, Calendar } from 'lucide-react'
 import Link from 'next/link'
@@ -14,7 +18,7 @@ export default function FieldDashboardPage() {
       <div className="space-y-4 mb-8">
         <Link href="/field/time">
           <BigCTAButton
-            icon={Clock}
+            icon={<Clock className="h-8 w-8" />}
             description="Log your work hours"
             variant="primary"
           >
@@ -24,7 +28,7 @@ export default function FieldDashboardPage() {
 
         <Link href="/field/mileage">
           <BigCTAButton
-            icon={MapPin}
+            icon={<MapPin className="h-8 w-8" />}
             description="Record mileage for reimbursement"
             variant="secondary"
           >
@@ -34,7 +38,7 @@ export default function FieldDashboardPage() {
 
         <Link href="/field/notes">
           <BigCTAButton
-            icon={FileText}
+            icon={<FileText className="h-8 w-8" />}
             description="Add notes and upload photos"
             variant="outline"
           >

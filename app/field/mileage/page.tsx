@@ -1,6 +1,9 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
+
 import { BigCTAButton } from '@/components/field/big-cta-button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -76,7 +79,7 @@ export default function FieldMileagePage() {
 
         <BigCTAButton
           type="submit"
-          icon={Check}
+          icon={<Check className="h-8 w-8" />}
           variant="primary"
         >
           Submit Mileage
