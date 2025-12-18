@@ -7,7 +7,7 @@ import { UserPlus, Plus, X, ArrowLeft, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/lib/toast-context'
 import { useAuth } from '@/lib/auth-context'
-import { collection, getDocs, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 
 interface CustomField {
