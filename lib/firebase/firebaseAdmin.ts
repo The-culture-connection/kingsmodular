@@ -25,6 +25,12 @@ function initializeFirebaseAdmin() {
         return null;
       }
 
+      // Validate private key format
+      if (!process.env.FIREBASE_PRIVATE_KEY.includes('BEGIN PRIVATE KEY')) {
+        console.warn("FIREBASE_PRIVATE_KEY appears to be malformed - Firebase Storage will not be available");
+        return null;
+      }
+
       app = admin.initializeApp({
         credential: admin.credential.cert({
           projectId: process.env.FIREBASE_PROJECT_ID,
