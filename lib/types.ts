@@ -1,5 +1,6 @@
 export type UserRole = 
-  | 'office_admin' 
+  | 'office_admin'
+  | 'admin' // Alias for office_admin (for backward compatibility)
   | 'project_manager' 
   | 'bookkeeper' 
   | 'field_staff' 

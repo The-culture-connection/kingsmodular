@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -11,12 +11,51 @@ import { useToast } from '@/lib/toast-context'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, user, refreshUser, isLoading: authLoading } = useAuth()
   const { showToast } = useToast()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [shouldRedirect, setShouldRedirect] = useState(false)
+
+  // Handle redirect after successful login and user state updates
+  useEffect(() => {
+    if (shouldRedirect && user && !authLoading && !isLoading) {
+      const role = user.role
+      const originalRole = (user as any).originalRole || role
+      const userId = user.id
+      
+      console.log('[LoginRedirect] Redirecting user:', {
+        role,
+        originalRole,
+        userId,
+        approvalStatus: user.approvalStatus
+      })
+      
+      // Check if admin (office_admin or admin role, or specific admin user ID)
+      if (role === 'office_admin' || originalRole === 'admin' || role === 'admin' || userId === 'xisMRRNSvEPUomzEWRMrGy11J2h2') {
+        console.log('[LoginRedirect] Redirecting to admin dashboard')
+        router.push('/admin/dashboard')
+      } else if (role === 'customer') {
+        console.log('[LoginRedirect] Redirecting to customer dashboard')
+        router.push('/customer/dashboard')
+      } else if (role === 'field_staff' || role === 'employee') {
+        console.log('[LoginRedirect] Redirecting to field dashboard')
+        router.push('/field/dashboard')
+      } else {
+        // Default to customer dashboard or pending approval
+        if (user.approvalStatus === 'pending') {
+          console.log('[LoginRedirect] Redirecting to pending approval')
+          router.push('/auth/pending-approval')
+        } else {
+          console.log('[LoginRedirect] Default redirect to customer dashboard')
+          router.push('/customer/dashboard')
+        }
+      }
+      setShouldRedirect(false) // Reset flag after redirect
+    }
+  }, [user, authLoading, isLoading, shouldRedirect, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,15 +65,18 @@ export default function LoginPage() {
     try {
       await login(email, password)
       showToast('Signed in successfully!', 'success')
-      // Wait a moment for auth state to update, then redirect based on role
-      setTimeout(() => {
-        router.push('/dashboard')
-      }, 100)
+      
+      // Refresh user profile to get latest role
+      await refreshUser()
+      
+      // Set flag to trigger redirect after user state updates
+      // The useEffect hook will handle the redirect once user is loaded
+      setShouldRedirect(true)
+      setIsLoading(false)
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to sign in. Please check your credentials.'
       setError(errorMessage)
       showToast(errorMessage, 'error')
-    } finally {
       setIsLoading(false)
     }
   }

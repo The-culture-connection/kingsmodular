@@ -53,8 +53,14 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     
     if (userSnap.exists()) {
       const data = userSnap.data()
+      // Ensure approvalStatus is set - default to 'approved' for admin users
+      const role = data.role || ''
+      const isAdmin = role === 'admin' || role === 'office_admin'
+      const approvalStatus = data.approvalStatus || (isAdmin ? 'approved' : 'pending')
+      
       return {
         ...data,
+        approvalStatus: approvalStatus, // Ensure approvalStatus is set
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
       } as UserProfile

@@ -11,19 +11,36 @@ export default function DashboardRedirectPage() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      // Redirect based on role - customers always go to customer dashboard
-      if (user.role === 'customer') {
-        router.push('/customer/dashboard')
-      } else if (user.role === 'field_staff' || user.role === 'employee') {
-        router.push('/field/dashboard')
-      } else if (user.approvalStatus === 'approved') {
+      const role = user.role
+      const originalRole = (user as any).originalRole || role
+      const userId = user.id
+      
+      console.log('[DashboardRedirect] Redirecting user:', {
+        role,
+        originalRole,
+        userId,
+        approvalStatus: user.approvalStatus
+      })
+      
+      // Check if admin (office_admin or admin role, or specific admin user ID)
+      if (role === 'office_admin' || originalRole === 'admin' || role === 'admin' || userId === 'xisMRRNSvEPUomzEWRMrGy11J2h2') {
+        console.log('[DashboardRedirect] Redirecting to admin dashboard')
         router.push('/admin/dashboard')
+      } else if (role === 'customer') {
+        console.log('[DashboardRedirect] Redirecting to customer dashboard')
+        router.push('/customer/dashboard')
+      } else if (role === 'field_staff' || role === 'employee') {
+        console.log('[DashboardRedirect] Redirecting to field dashboard')
+        router.push('/field/dashboard')
       } else if (user.approvalStatus === 'pending') {
+        console.log('[DashboardRedirect] Redirecting to pending approval')
         router.push('/auth/pending-approval')
       } else {
-        router.push('/auth/login')
+        console.log('[DashboardRedirect] Default redirect to customer dashboard')
+        router.push('/customer/dashboard')
       }
     } else if (!isLoading && !user) {
+      console.log('[DashboardRedirect] No user, redirecting to login')
       router.push('/auth/login')
     }
   }, [user, isLoading, router])

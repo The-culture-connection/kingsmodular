@@ -27,18 +27,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadUserProfile = React.useCallback(async (firebaseUser: FirebaseUser) => {
     try {
       const profile = await getUserProfile(firebaseUser.uid)
+      console.log('[AuthContext] Loaded profile from Firestore:', profile)
+      
       if (profile) {
+        // Keep the original role from Firestore - don't normalize it
+        // We'll handle "admin" and "office_admin" as equivalent in the checks
+        const originalRole = profile.role
+        let userRole: UserRole
+        
+        // Map "admin" to "office_admin" for type safety, but preserve the check logic
+        if (originalRole === 'admin' || originalRole === 'office_admin') {
+          userRole = 'office_admin' // Use office_admin for type, but we'll check for both
+        } else {
+          userRole = originalRole as UserRole
+        }
+        
+        console.log('[AuthContext] Loaded profile:', {
+          uid: profile.uid,
+          originalRole: originalRole,
+          mappedRole: userRole,
+          email: profile.email
+        })
+        
+        // Auto-approve admin users
+        let approvalStatus = profile.approvalStatus
+        if ((originalRole === 'admin' || userRole === 'office_admin') && !approvalStatus) {
+          approvalStatus = 'approved'
+          console.log('[AuthContext] Auto-approving admin user')
+        }
+        
         const userData: User = {
           id: profile.uid,
-          email: profile.email,
+          email: profile.email || firebaseUser.email || '', // Use Firebase auth email as fallback
           firstName: profile.firstName,
           lastName: profile.lastName,
-          role: profile.role as UserRole,
+          role: userRole,
           companyId: undefined, // Can be added later
           companyName: profile.companyName,
-          approvalStatus: profile.approvalStatus,
+          approvalStatus: approvalStatus || 'pending',
           createdAt: profile.createdAt instanceof Date ? profile.createdAt : new Date(profile.createdAt),
         }
+        
+        // Store original role in a way we can check it
+        ;(userData as any).originalRole = originalRole
+        
+        console.log('[AuthContext] Setting user data:', { 
+          id: userData.id, 
+          role: userData.role, 
+          originalRole: originalRole,
+          email: userData.email 
+        })
         setUser(userData)
         setFirebaseUser(firebaseUser)
       } else {
@@ -95,8 +133,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const hasRole = (roles: UserRole[]): boolean => {
-    if (!user) return false
-    return roles.includes(user.role)
+    if (!user) {
+      console.log('[hasRole] No user, returning false')
+      return false
+    }
+    
+    // Get original role from Firestore if available
+    const originalRole = (user as any).originalRole || user.role
+    const userRole = user.role
+    
+    console.log('[hasRole] Checking role access:', {
+      userRole,
+      originalRole,
+      allowedRoles: roles,
+      userId: user.id
+    })
+    
+    // Check if user's role is in allowed roles
+    // Also treat 'admin' (from Firestore) as equivalent to 'office_admin'
+    const isAdmin = originalRole === 'admin' || userRole === 'admin' || userRole === 'office_admin'
+    const isOfficeAdminAllowed = roles.includes('office_admin')
+    
+    if (isAdmin && isOfficeAdminAllowed) {
+      console.log('[hasRole] User is admin and office_admin is allowed, returning true')
+      return true
+    }
+    
+    const hasAccess = roles.includes(userRole)
+    console.log('[hasRole] Role check result:', hasAccess)
+    return hasAccess
   }
 
   const hasPermission = (permission: string): boolean => {

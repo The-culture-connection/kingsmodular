@@ -205,7 +205,10 @@ export default function CustomerJobsPage() {
     : jobs.filter(job => job.status === filterStatus)
 
   const totalOutstanding = jobs
-    .filter(job => job.status === 'outstanding')
+    .filter(job => {
+      const status = String(job.status).toLowerCase().trim()
+      return status === 'approved' || status === 'in_progress' || status === 'outstanding' || status === 'ongoing'
+    })
     .reduce((sum, job) => sum + job.totalPrice, 0)
 
   if (isLoading) {
@@ -267,7 +270,10 @@ export default function CustomerJobsPage() {
         <div className="bg-base border border-accent/20 rounded-lg p-4">
           <p className="text-sm text-foreground/70 mb-1">Outstanding</p>
           <p className="text-2xl font-bold text-foreground">
-            {jobs.filter(j => j.status === 'outstanding').length}
+            {jobs.filter(j => {
+              const status = String(j.status).toLowerCase().trim()
+              return status === 'approved' || status === 'in_progress' || status === 'outstanding' || status === 'ongoing'
+            }).length}
           </p>
         </div>
         <div className="bg-base border border-accent/20 rounded-lg p-4">

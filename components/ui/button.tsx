@@ -14,8 +14,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const variants = {
       primary: 'bg-accent hover:bg-accent/90 text-foreground focus:ring-accent',
       secondary: 'bg-base border-2 border-foreground/20 hover:bg-foreground/10 text-foreground focus:ring-foreground/20',
-      outline: 'border-2 border-accent text-accent hover:bg-accent hover:text-base focus:ring-accent',
-      ghost: 'hover:bg-foreground/10 text-foreground focus:ring-foreground/20',
+      outline: 'border-2 border-accent !text-accent hover:bg-accent hover:!text-base focus:ring-accent',
+      ghost: 'hover:bg-foreground/10 !text-accent focus:ring-foreground/20',
       danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
     }
 

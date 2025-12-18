@@ -31,9 +31,12 @@ export default function CustomerDashboardPage() {
         return
       }
       
-      // Calculate outstanding balance (only outstanding status)
+      // Calculate outstanding balance (approved, in_progress/ongoing, and outstanding statuses)
       const outstanding = allJobs
-        .filter(job => job.status === 'outstanding')
+        .filter(job => {
+          const status = String(job.status).toLowerCase().trim()
+          return status === 'approved' || status === 'in_progress' || status === 'outstanding' || status === 'ongoing'
+        })
         .reduce((sum, job) => sum + job.totalPrice, 0)
       setOutstandingBalance(outstanding)
 
