@@ -43,6 +43,17 @@ app.prepare()
     
     const server = createServer(async (req, res) => {
       try {
+        // Health check endpoint
+        if (req.url === '/health' || req.url === '/api/health') {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ 
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+          }))
+          return
+        }
+
         const parsedUrl = parse(req.url, true)
         await handle(req, res, parsedUrl)
       } catch (err) {

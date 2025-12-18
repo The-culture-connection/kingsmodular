@@ -76,25 +76,7 @@ export default function CustomerJobsPage() {
     try {
       setIsLoading(true)
       setError(null)
-      console.log('Loading jobs for user:', user.id)
       const allJobs = await getCustomerPendingEstimates(user.id)
-      console.log('Loaded jobs:', allJobs)
-      console.log('Jobs with full status details:', allJobs.map(j => ({ id: j.id, status: j.status, statusType: typeof j.status })))
-      console.log('Jobs by status:', {
-        pending: allJobs.filter(j => j.status === 'pending').length,
-        approved: allJobs.filter(j => j.status === 'approved').length,
-        outstanding: allJobs.filter(j => j.status === 'outstanding').length,
-        denied: allJobs.filter(j => j.status === 'denied').length,
-        in_progress: allJobs.filter(j => j.status === 'in_progress').length,
-        paid: allJobs.filter(j => j.status === 'paid').length,
-      })
-      console.log('Status comparison test:', allJobs.map(j => ({
-        id: j.id,
-        status: j.status,
-        isPending: j.status === 'pending',
-        isApproved: j.status === 'approved',
-        statusLength: j.status?.length,
-      })))
       
       if (!Array.isArray(allJobs)) {
         throw new Error('Invalid data format received from server')
@@ -315,15 +297,13 @@ export default function CustomerJobsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {filteredJobs.map((job) => {
-            // Debug: Log the job status before mapping
-            console.log('Rendering job:', job.id, 'Status:', job.status, 'Status type:', typeof job.status, 'Status length:', job.status?.length)
-            
-            // Ensure status is a valid key - normalize it
+            // Normalize status to handle any casing or whitespace issues
             const jobStatus = String(job.status || 'pending').toLowerCase().trim()
             const status = statusConfig[jobStatus as keyof typeof statusConfig] || statusConfig.pending
             const StatusIcon = status.icon
             
-            console.log('Mapped status config:', status.label, 'for job status:', jobStatus, 'original:', job.status)
+            // Check if invoice download should be available (use normalized status)
+            const canDownloadInvoice = ['approved', 'outstanding', 'in_progress', 'paid'].includes(jobStatus)
 
             return (
               <div
@@ -393,7 +373,7 @@ export default function CustomerJobsPage() {
                 </div>
 
                 {/* Download Invoice Button - Show for approved, outstanding, in_progress, and paid */}
-                {(job.status === 'approved' || job.status === 'outstanding' || job.status === 'in_progress' || job.status === 'paid') && (
+                {canDownloadInvoice && (
                   <div className="flex justify-end pt-4 border-t border-accent/20">
                     <Button
                       onClick={() => handleDownloadInvoice(job)}

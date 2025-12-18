@@ -35,6 +35,30 @@ If you want invoice PDF generation to work, set these:
 
 The app automatically uses Railway's `PORT` environment variable. The custom `server.js` ensures the app listens on `0.0.0.0:PORT`.
 
+## Service Configuration on Railway
+
+**IMPORTANT**: Make sure your Railway service is properly configured:
+
+1. **Service is Public**: 
+   - Go to your Railway service settings
+   - Under "Networking" or "Settings"
+   - Make sure the service is set to "Public" (not private)
+   - This generates a public URL
+
+2. **Port is Correct**:
+   - Railway automatically sets the `PORT` environment variable
+   - The server listens on `0.0.0.0:PORT` (all interfaces)
+   - Check logs to confirm the port (should be 8080 or similar)
+
+3. **Health Check**:
+   - Railway may need a health check endpoint
+   - The app includes `/api/health` endpoint
+   - You can test it: `https://your-app.railway.app/api/health`
+
+4. **Service Status**:
+   - In Railway dashboard, check that the service shows "Active" or "Running"
+   - If it shows "Stopped" or "Error", check the logs
+
 ## Troubleshooting 502 Errors
 
 If you're getting a 502 error, check:
