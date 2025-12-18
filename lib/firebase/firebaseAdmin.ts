@@ -87,10 +87,25 @@ function initializeFirebaseAdmin() {
 
 // Get Firebase Admin app instance (initializes if needed)
 export function getFirebaseAdminApp() {
-  if (!app) {
-    app = initializeFirebaseAdmin();
+  try {
+    if (!app) {
+      app = initializeFirebaseAdmin();
+    }
+    return app;
+  } catch (error: any) {
+    console.error("[getFirebaseAdminApp] Error during initialization:", error);
+    throw error;
   }
-  return app;
+}
+
+// Check if Firebase Admin is properly configured
+export function isFirebaseAdminConfigured(): boolean {
+  return !!(
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY &&
+    process.env.FIREBASE_PRIVATE_KEY.includes('BEGIN PRIVATE KEY')
+  );
 }
 
 // Lazy initialization - only initialize when bucket is accessed

@@ -19,7 +19,7 @@ Make sure to set these environment variables in your Railway project settings:
 The Firebase client SDK uses hardcoded config in `lib/firebase/config.ts`, so no env vars needed for basic auth/database.
 
 ### Required for Firebase Admin SDK (Invoice PDF Generation)
-**CRITICAL**: These are REQUIRED for invoice downloads to work. Without these, invoice generation will fail.
+**CRITICAL**: These are REQUIRED for invoice downloads to work. Without these, invoice generation will fail with a 500 error.
 
 - `FIREBASE_PROJECT_ID=kingsmodularllc`
 - `FIREBASE_CLIENT_EMAIL=your-service-account-email@kingsmodularllc.iam.gserviceaccount.com`
@@ -30,6 +30,20 @@ The Firebase client SDK uses hardcoded config in `lib/firebase/config.ts`, so no
 - The `FIREBASE_PRIVATE_KEY` must include the newlines (`\n`) and be wrapped in quotes.
 - These are required for the API route to access Firestore (server-side operations need Admin SDK).
 - Get these from Firebase Console → Project Settings → Service Accounts → Generate New Private Key
+- **If you see "Failed to fetch estimate" error, check Railway logs for Firebase Admin initialization errors**
+
+**How to Get Firebase Admin Credentials:**
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project (kingsmodularllc)
+3. Click the gear icon → Project Settings
+4. Go to "Service Accounts" tab
+5. Click "Generate New Private Key"
+6. Download the JSON file
+7. Extract values:
+   - `project_id` → `FIREBASE_PROJECT_ID`
+   - `client_email` → `FIREBASE_CLIENT_EMAIL`
+   - `private_key` → `FIREBASE_PRIVATE_KEY` (keep the newlines and wrap in quotes)
+   - `storageBucket` from Firebase config → `FIREBASE_STORAGE_BUCKET`
 
 ### Optional
 - `PUPPETEER_EXECUTABLE_PATH` - Only needed if you want to use a custom Chrome path (not needed on Railway)

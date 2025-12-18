@@ -1,5 +1,5 @@
 // Server-side Firestore functions using Firebase Admin SDK
-import { getFirebaseAdminApp } from './firebaseAdmin'
+import { getFirebaseAdminApp, isFirebaseAdminConfigured } from './firebaseAdmin'
 import { PendingEstimate, EstimateStatus } from './firestore'
 
 const USERS_COLLECTION = 'users'
@@ -16,22 +16,42 @@ export async function getCustomerPendingEstimatesAdmin(customerId: string): Prom
     console.log(`${logPrefix} Fetching estimates for customer:`, customerId)
     console.log(`${logPrefix} Customer ID type:`, typeof customerId, 'length:', customerId.length)
     
+    // Check if Firebase Admin is configured before attempting initialization
+    const isConfigured = isFirebaseAdminConfigured();
+    console.log(`${logPrefix} Firebase Admin configuration check:`, isConfigured);
+    
+    if (!isConfigured) {
+      const envCheck = {
+        hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+        hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+        hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+        privateKeyLength: process.env.FIREBASE_PRIVATE_KEY?.length || 0,
+        privateKeyHasBegin: process.env.FIREBASE_PRIVATE_KEY?.includes('BEGIN PRIVATE KEY') || false,
+        hasStorageBucket: !!process.env.FIREBASE_STORAGE_BUCKET
+      };
+      console.error(`${logPrefix} Firebase Admin SDK is not configured!`);
+      console.error(`${logPrefix} Environment variables status:`, envCheck);
+      throw new Error('Firebase Admin SDK is not configured. Please set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.')
+    }
+    
     // Initialize Admin SDK and get Firestore instance
     console.log(`${logPrefix} Initializing Firebase Admin SDK...`);
     const initStartTime = Date.now();
-    const adminApp = getFirebaseAdminApp()
+    let adminApp;
+    try {
+      adminApp = getFirebaseAdminApp();
+    } catch (initError: any) {
+      console.error(`${logPrefix} Failed to get Firebase Admin app:`, initError);
+      console.error(`${logPrefix} Init error name:`, initError.name);
+      console.error(`${logPrefix} Init error message:`, initError.message);
+      console.error(`${logPrefix} Init error stack:`, initError.stack);
+      throw new Error(`Firebase Admin SDK initialization failed: ${initError.message}`);
+    }
     const initDuration = Date.now() - initStartTime;
     console.log(`${logPrefix} Admin SDK initialization took ${initDuration}ms`);
     
     if (!adminApp) {
       console.error(`${logPrefix} Firebase Admin SDK initialization returned null/undefined!`);
-      console.error(`${logPrefix} Environment variables check:`, {
-        hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
-        hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
-        hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
-        privateKeyLength: process.env.FIREBASE_PRIVATE_KEY?.length || 0,
-        hasStorageBucket: !!process.env.FIREBASE_STORAGE_BUCKET
-      });
       throw new Error('Firebase Admin SDK not initialized. Please check environment variables.')
     }
     
