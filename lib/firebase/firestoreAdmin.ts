@@ -56,8 +56,16 @@ export async function getCustomerPendingEstimatesAdmin(customerId: string): Prom
     }
     
     console.log(`${logPrefix} Getting Firestore instance...`);
-    const db = adminApp.firestore()
-    console.log(`${logPrefix} Firestore instance obtained`);
+    let db;
+    try {
+      db = adminApp.firestore();
+      console.log(`${logPrefix} Firestore instance obtained successfully`);
+    } catch (firestoreError: any) {
+      console.error(`${logPrefix} Failed to get Firestore instance:`, firestoreError);
+      console.error(`${logPrefix} Firestore error name:`, firestoreError.name);
+      console.error(`${logPrefix} Firestore error message:`, firestoreError.message);
+      throw new Error(`Failed to get Firestore instance: ${firestoreError.message}`);
+    }
     
     // Get estimates from user's subcollection: users/{uid}/estimates
     console.log(`${logPrefix} Building Firestore query path:`, {
@@ -66,17 +74,28 @@ export async function getCustomerPendingEstimatesAdmin(customerId: string): Prom
       subcollection: ESTIMATES_SUBCOLLECTION,
       fullPath: `${USERS_COLLECTION}/${customerId}/${ESTIMATES_SUBCOLLECTION}`
     });
-    const userRef = db.collection(USERS_COLLECTION).doc(customerId)
-    const estimatesRef = userRef.collection(ESTIMATES_SUBCOLLECTION)
     
-    console.log(`${logPrefix} Executing Firestore query...`);
-    const queryStartTime = Date.now();
-    const querySnapshot = await estimatesRef.get()
-    const queryDuration = Date.now() - queryStartTime;
-    
-    console.log(`${logPrefix} Query completed in ${queryDuration}ms`);
-    console.log(`${logPrefix} Query snapshot size:`, querySnapshot.size)
-    console.log(`${logPrefix} Query snapshot empty:`, querySnapshot.empty)
+    let userRef, estimatesRef, querySnapshot;
+    try {
+      userRef = db.collection(USERS_COLLECTION).doc(customerId);
+      estimatesRef = userRef.collection(ESTIMATES_SUBCOLLECTION);
+      
+      console.log(`${logPrefix} Executing Firestore query...`);
+      const queryStartTime = Date.now();
+      querySnapshot = await estimatesRef.get();
+      const queryDuration = Date.now() - queryStartTime;
+      
+      console.log(`${logPrefix} Query completed in ${queryDuration}ms`);
+      console.log(`${logPrefix} Query snapshot size:`, querySnapshot.size);
+      console.log(`${logPrefix} Query snapshot empty:`, querySnapshot.empty);
+    } catch (queryError: any) {
+      console.error(`${logPrefix} Firestore query error:`, queryError);
+      console.error(`${logPrefix} Query error name:`, queryError.name);
+      console.error(`${logPrefix} Query error code:`, (queryError as any).code);
+      console.error(`${logPrefix} Query error message:`, queryError.message);
+      console.error(`${logPrefix} Query error stack:`, queryError.stack);
+      throw new Error(`Firestore query failed: ${queryError.message} (code: ${(queryError as any).code || 'unknown'})`);
+    }
     
     const estimates: PendingEstimate[] = []
     let docIndex = 0;

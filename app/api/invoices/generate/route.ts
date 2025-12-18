@@ -12,6 +12,19 @@ export async function POST(req: Request) {
   console.log(`[${requestId}] Request method:`, req.method);
   console.log(`[${requestId}] Request headers:`, Object.fromEntries(req.headers.entries()));
   
+  // Log environment variable status (without exposing sensitive values)
+  console.log(`[${requestId}] Environment variables check:`, {
+    hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+    projectId: process.env.FIREBASE_PROJECT_ID || 'MISSING',
+    hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+    clientEmailPrefix: process.env.FIREBASE_CLIENT_EMAIL?.substring(0, 20) || 'MISSING',
+    hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+    privateKeyLength: process.env.FIREBASE_PRIVATE_KEY?.length || 0,
+    hasStorageBucket: !!process.env.FIREBASE_STORAGE_BUCKET,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'MISSING',
+    nodeEnv: process.env.NODE_ENV,
+  });
+  
   try {
     // Parse request body
     let body;

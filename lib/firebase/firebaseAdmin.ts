@@ -46,27 +46,60 @@ function initializeFirebaseAdmin() {
 
       // Validate private key format
       const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-      console.log(`${logPrefix} Private key length:`, privateKey.length);
-      console.log(`${logPrefix} Private key starts with BEGIN:`, privateKey.includes('BEGIN PRIVATE KEY'));
-      console.log(`${logPrefix} Private key contains newlines:`, privateKey.includes('\n') || privateKey.includes('\\n'));
+      console.log(`${logPrefix} Private key length:`, privateKey?.length || 0);
+      console.log(`${logPrefix} Private key starts with BEGIN:`, privateKey?.includes('BEGIN PRIVATE KEY') || false);
+      console.log(`${logPrefix} Private key contains literal newlines:`, privateKey?.includes('\n') || false);
+      console.log(`${logPrefix} Private key contains escaped newlines:`, privateKey?.includes('\\n') || false);
+      console.log(`${logPrefix} Private key first 50 chars:`, privateKey?.substring(0, 50) || 'MISSING');
+      console.log(`${logPrefix} Private key last 50 chars:`, privateKey?.substring(Math.max(0, (privateKey?.length || 0) - 50)) || 'MISSING');
+      
+      if (!privateKey) {
+        const error = new Error("FIREBASE_PRIVATE_KEY is empty or undefined");
+        console.error(`${logPrefix} Firebase Admin initialization error:`, error.message);
+        throw error;
+      }
       
       if (!privateKey.includes('BEGIN PRIVATE KEY')) {
-        const error = new Error("FIREBASE_PRIVATE_KEY appears to be malformed");
+        const error = new Error("FIREBASE_PRIVATE_KEY appears to be malformed - missing BEGIN PRIVATE KEY marker");
+        console.error(`${logPrefix} Firebase Admin initialization error:`, error.message);
+        throw error;
+      }
+      
+      if (!privateKey.includes('END PRIVATE KEY')) {
+        const error = new Error("FIREBASE_PRIVATE_KEY appears to be malformed - missing END PRIVATE KEY marker");
         console.error(`${logPrefix} Firebase Admin initialization error:`, error.message);
         throw error;
       }
 
       console.log(`${logPrefix} Initializing Firebase Admin app...`);
       const initStartTime = Date.now();
-      app = admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          // Important: replace escaped newlines
-          privateKey: privateKey.replace(/\\n/g, "\n"),
-        }),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
-      });
+      // Process private key - handle both literal and escaped newlines
+      let processedPrivateKey = privateKey;
+      // If it contains \n (escaped), replace with actual newlines
+      if (processedPrivateKey.includes('\\n')) {
+        console.log(`${logPrefix} Detected escaped newlines, converting...`);
+        processedPrivateKey = processedPrivateKey.replace(/\\n/g, "\n");
+      }
+      // If it doesn't have newlines but should, this might be an issue
+      // But we'll let Firebase SDK handle it
+      
+      console.log(`${logPrefix} Processed private key length:`, processedPrivateKey.length);
+      console.log(`${logPrefix} Processed private key has newlines:`, processedPrivateKey.includes('\n'));
+      
+      try {
+        app = admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: processedPrivateKey,
+          }),
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
+        });
+      } catch (certError: any) {
+        console.error(`${logPrefix} Error creating certificate:`, certError);
+        console.error(`${logPrefix} Certificate error message:`, certError.message);
+        throw new Error(`Failed to create Firebase Admin credential: ${certError.message}`);
+      }
       const initDuration = Date.now() - initStartTime;
       console.log(`${logPrefix} Firebase Admin SDK initialized successfully in ${initDuration}ms`);
       console.log(`${logPrefix} Project ID:`, process.env.FIREBASE_PROJECT_ID);

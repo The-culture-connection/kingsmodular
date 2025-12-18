@@ -21,16 +21,13 @@ The Firebase client SDK uses hardcoded config in `lib/firebase/config.ts`, so no
 ### Required for Firebase Admin SDK (Invoice PDF Generation)
 **CRITICAL**: These are REQUIRED for invoice downloads to work. Without these, invoice generation will fail with a 500 error.
 
+**See `FIREBASE_ADMIN_SETUP.md` for detailed step-by-step instructions.**
+
+Quick setup:
 - `FIREBASE_PROJECT_ID=kingsmodularllc`
 - `FIREBASE_CLIENT_EMAIL=your-service-account-email@kingsmodularllc.iam.gserviceaccount.com`
 - `FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"`
 - `FIREBASE_STORAGE_BUCKET=kingsmodularllc.firebasestorage.app`
-
-**Note:** 
-- The `FIREBASE_PRIVATE_KEY` must include the newlines (`\n`) and be wrapped in quotes.
-- These are required for the API route to access Firestore (server-side operations need Admin SDK).
-- Get these from Firebase Console → Project Settings → Service Accounts → Generate New Private Key
-- **If you see "Failed to fetch estimate" error, check Railway logs for Firebase Admin initialization errors**
 
 **How to Get Firebase Admin Credentials:**
 1. Go to [Firebase Console](https://console.firebase.google.com/)
@@ -39,11 +36,13 @@ The Firebase client SDK uses hardcoded config in `lib/firebase/config.ts`, so no
 4. Go to "Service Accounts" tab
 5. Click "Generate New Private Key"
 6. Download the JSON file
-7. Extract values:
+7. Extract values from the JSON:
    - `project_id` → `FIREBASE_PROJECT_ID`
    - `client_email` → `FIREBASE_CLIENT_EMAIL`
-   - `private_key` → `FIREBASE_PRIVATE_KEY` (keep the newlines and wrap in quotes)
-   - `storageBucket` from Firebase config → `FIREBASE_STORAGE_BUCKET`
+   - `private_key` → `FIREBASE_PRIVATE_KEY` (copy the entire value including BEGIN/END lines)
+   - Storage bucket from Firebase config → `FIREBASE_STORAGE_BUCKET`
+
+**Common Error**: If you see "Failed to fetch estimate" or "Firebase Admin SDK is not configured", it means these environment variables are missing in Railway.
 
 ### Optional
 - `PUPPETEER_EXECUTABLE_PATH` - Only needed if you want to use a custom Chrome path (not needed on Railway)
@@ -101,4 +100,19 @@ If you're getting a 502 error, check:
 - Check that `server.js` is in the root directory
 - Verify `package.json` has `"start": "node server.js"`
 - Check Railway logs for runtime errors
+
+### Invoice download still failing after setting environment variables
+1. **Verify variables are set**: Go to Railway → Variables tab and confirm all 4 variables are present
+2. **Check variable format**: 
+   - `FIREBASE_PRIVATE_KEY` should include `-----BEGIN PRIVATE KEY-----` at the start
+   - `FIREBASE_PRIVATE_KEY` should include `-----END PRIVATE KEY-----` at the end
+   - The key should be the full value from the JSON file
+3. **Redeploy**: After adding/updating variables, Railway should auto-redeploy. If not, trigger a manual redeploy
+4. **Test Admin SDK**: Visit `https://your-app.railway.app/api/test-admin` to see detailed diagnostics
+5. **Check logs**: Look for `[AdminInit-` or `[Admin-` prefixes in Railway logs to see exact errors
+6. **Common issues**:
+   - Private key missing newlines (should have `\n` characters)
+   - Private key wrapped in extra quotes (Railway handles quotes automatically)
+   - Variables not saved (make sure to click "Save" after adding)
+   - Service not redeployed after adding variables
 

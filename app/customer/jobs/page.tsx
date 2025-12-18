@@ -185,7 +185,18 @@ export default function CustomerJobsPage() {
       showToast('Invoice downloaded successfully!', 'success')
     } catch (error: any) {
       console.error('Error downloading invoice:', error)
-      showToast(error.message || 'Failed to generate invoice. Please try again.', 'error')
+      
+      // Provide more helpful error messages
+      let errorMessage = error.message || 'Failed to generate invoice. Please try again.'
+      
+      // Check if it's a Firebase Admin configuration error
+      if (error.message && error.message.includes('Firebase Admin SDK')) {
+        errorMessage = 'Invoice generation is not configured on the server. Please contact support.'
+      } else if (error.message && error.message.includes('Failed to fetch estimate')) {
+        errorMessage = 'Unable to retrieve invoice data. Please try again or contact support if the problem persists.'
+      }
+      
+      showToast(errorMessage, 'error')
     }
   }
 
