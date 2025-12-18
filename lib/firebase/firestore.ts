@@ -12,8 +12,8 @@ import {
 import { db } from './config'
 import { User, ApprovalStatus } from '../types'
 
-// Define EstimateStatus type locally
-type EstimateStatus = 'pending' | 'approved' | 'denied' | 'outstanding' | 'in_progress' | 'paid'
+// Define EstimateStatus type - exported for use in other modules
+export type EstimateStatus = 'pending' | 'approved' | 'denied' | 'outstanding' | 'in_progress' | 'paid'
 
 const USERS_COLLECTION = 'users'
 
