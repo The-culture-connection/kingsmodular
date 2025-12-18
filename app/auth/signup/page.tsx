@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -15,7 +15,7 @@ import { useToast } from '@/lib/toast-context'
 const INTERNAL_ROLES: UserRole[] = ['office_admin', 'project_manager', 'bookkeeper', 'field_staff', 'employee']
 const CUSTOMER_ROLE: UserRole = 'customer'
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { showToast } = useToast()
@@ -251,5 +251,13 @@ export default function SignupPage() {
         </video>
       </div>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-base"><div className="text-foreground/70">Loading...</div></div>}>
+      <SignupForm />
+    </Suspense>
   )
 }

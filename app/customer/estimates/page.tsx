@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, MapPin, Clock, CheckCircle2, XCircle } from 'lucide-react'
+import { Calendar, MapPin, Clock, CheckCircle2, XCircle, DollarSign, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/lib/toast-context'
 import { getCustomerPendingEstimates, PendingEstimate } from '@/lib/firebase/firestore'
 import { cn } from '@/lib/utils'
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; icon: any; color: string; bgColor: string; borderColor: string }> = {
   pending: {
     label: 'Pending',
     icon: Clock,
@@ -28,6 +28,27 @@ const statusConfig = {
     color: 'text-red-400',
     bgColor: 'bg-red-400/20',
     borderColor: 'border-red-400/50',
+  },
+  outstanding: {
+    label: 'Outstanding',
+    icon: DollarSign,
+    color: 'text-orange-400',
+    bgColor: 'bg-orange-400/20',
+    borderColor: 'border-orange-400/50',
+  },
+  in_progress: {
+    label: 'In Progress',
+    icon: Loader2,
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-400/20',
+    borderColor: 'border-blue-400/50',
+  },
+  paid: {
+    label: 'Paid',
+    icon: CheckCircle2,
+    color: 'text-green-500',
+    bgColor: 'bg-green-500/20',
+    borderColor: 'border-green-500/50',
   },
 }
 
@@ -89,7 +110,7 @@ export default function CustomerEstimatesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {estimates.map((estimate) => {
-            const status = statusConfig[estimate.status]
+            const status = statusConfig[estimate.status] || statusConfig.pending
             const StatusIcon = status.icon
 
             return (

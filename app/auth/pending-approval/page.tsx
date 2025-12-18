@@ -42,9 +42,11 @@ export default function PendingApprovalPage() {
               </ul>
             </div>
 
-            <Button asChild variant="outline" className="w-full">
-              <Link href="/auth/login">Return to Sign In</Link>
-            </Button>
+            <Link href="/auth/login" className="w-full">
+              <Button variant="outline" className="w-full">
+                Return to Sign In
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

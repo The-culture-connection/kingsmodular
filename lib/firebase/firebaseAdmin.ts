@@ -2,7 +2,7 @@ import admin from "firebase-admin";
 
 // Initialize Firebase Admin only if not already initialized
 let app: admin.app.App | null = null;
-let bucket: admin.storage.Bucket | null = null;
+let bucket: any = null;
 
 function initializeFirebaseAdmin() {
   if (bucket) {
@@ -48,7 +48,7 @@ function initializeFirebaseAdmin() {
 }
 
 // Lazy initialization - only initialize when bucket is accessed
-export function getBucket(): admin.storage.Bucket | null {
+export function getBucket() {
   if (!bucket) {
     bucket = initializeFirebaseAdmin();
   }

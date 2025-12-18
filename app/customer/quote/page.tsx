@@ -92,6 +92,7 @@ export default function QuotePage() {
       const fullLocation = `${streetAddress.trim()}, ${city.trim()}, ${state} ${zipCode.trim()}`
 
       await createPendingEstimate({
+        uid: user.id,
         customerId: user.id,
         customerEmail: user.email,
         customerCompanyName: user.companyName || '',
@@ -102,6 +103,7 @@ export default function QuotePage() {
           end: endDate,
         },
         location: fullLocation,
+        status: 'pending',
       })
 
       showToast('Quote submitted successfully!', 'success')

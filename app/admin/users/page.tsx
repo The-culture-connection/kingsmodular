@@ -1,3 +1,7 @@
+'use client'
+
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -15,11 +19,11 @@ export default function AdminUsersPage() {
           <p className="text-gray-600">Manage user accounts and access permissions</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/admin/users/approvals">
+          <Link href="/admin/users/approvals">
+            <Button variant="outline">
               View Pending Approvals
-            </Link>
-          </Button>
+            </Button>
+          </Link>
           <Button>
             <Plus className="h-4 w-4 mr-2" />
             Add User

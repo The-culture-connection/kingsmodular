@@ -6,9 +6,6 @@ import { platform } from "os";
 // Determine if we're running in a serverless environment
 const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.FUNCTION_TARGET);
 
-// Configure Chromium for serverless environments
-chromium.setGraphicsMode(false);
-
 /**
  * Find Chrome executable path for local development
  */
@@ -60,9 +57,9 @@ export async function renderInvoicePdf(html: string): Promise<Buffer> {
     if (isServerless) {
       // Serverless environment: use @sparticuz/chromium
       executablePath = await chromium.executablePath();
-      launchArgs = chromium.args;
-      defaultViewport = chromium.defaultViewport;
-      headless = chromium.headless;
+      launchArgs = chromium.args || [];
+      defaultViewport = { width: 1280, height: 720 };
+      headless = true; // Always headless in serverless
       console.log('Using serverless Chromium');
     } else {
       // Local development: try to use system Chrome/Chromium

@@ -42,19 +42,21 @@ export async function signupUser(data: SignupData) {
     await sendEmailVerification(user)
 
     // Create user profile in Firestore
-    const profileData = {
-      uid: user.uid,
-      email: user.email!,
-      firstName: data.firstName,
-      lastName: data.lastName || '',
-      displayName: displayName,
-      role: data.role,
-      companyName: data.companyName || '',
-      companyType: data.companyType || '',
-      approvalStatus: ['office_admin', 'project_manager', 'bookkeeper', 'field_staff', 'employee'].includes(data.role) ? 'pending' : 'approved',
-      createdAt: new Date(),
-      emailVerified: false,
-    }
+          const approvalStatus: 'pending' | 'approved' | 'denied' = ['office_admin', 'project_manager', 'bookkeeper', 'field_staff', 'employee'].includes(data.role) ? 'pending' : 'approved';
+          
+          const profileData = {
+            uid: user.uid,
+            email: user.email!,
+            firstName: data.firstName,
+            lastName: data.lastName || '',
+            displayName: displayName,
+            role: data.role,
+            companyName: data.companyName || '',
+            companyType: data.companyType || '',
+            approvalStatus: approvalStatus,
+            createdAt: new Date(),
+            emailVerified: false,
+          }
 
     await createUserProfile(user.uid, profileData)
 
