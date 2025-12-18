@@ -1,5 +1,13 @@
 # Railway Deployment Guide
 
+## Important: Check Railway Logs First
+
+If you're getting a 502 error, **the most important step is to check your Railway deploy logs**. Look for:
+- Error messages during build
+- Error messages during startup
+- "Ready on http://..." message (means server started successfully)
+- Any stack traces or crash messages
+
 ## Environment Variables Required
 
 Make sure to set these environment variables in your Railway project settings:

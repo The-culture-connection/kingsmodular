@@ -26,6 +26,8 @@ const gotham = localFont({
   ],
   variable: '--font-gotham',
   display: 'swap',
+  fallback: ['system-ui', 'arial', 'sans-serif'],
+  adjustFontFallback: false, // Prevent font loading from blocking startup
 })
 
 export const metadata: Metadata = {
