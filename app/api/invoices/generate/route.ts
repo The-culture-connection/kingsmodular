@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { renderInvoicePdf } from "@/lib/renderInvoicePdf";
 import { uploadInvoicePdf } from "@/lib/uploadInvoicePdf";
 import { invoiceHtml } from "@/lib/invoiceTemplate";
-import { getCustomerPendingEstimates } from "@/lib/firebase/firestore";
+import { getCustomerPendingEstimatesAdmin } from "@/lib/firebase/firestoreAdmin";
 
 export async function POST(req: Request) {
   console.log("=== Invoice Generation API Called ===");
@@ -29,16 +29,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fetch the estimate from Firestore
+    // Fetch the estimate from Firestore using Admin SDK (server-side)
     let estimates;
     try {
-      estimates = await getCustomerPendingEstimates(customerId);
+      console.log("Fetching estimates using Admin SDK for customer:", customerId);
+      estimates = await getCustomerPendingEstimatesAdmin(customerId);
+      console.log("Successfully fetched", estimates.length, "estimates");
     } catch (firestoreError: any) {
-      console.error("Firestore error:", firestoreError);
+      console.error("Firestore Admin error:", firestoreError);
+      console.error("Error stack:", firestoreError.stack);
       return NextResponse.json(
         {
           error: "Failed to fetch estimate",
           message: firestoreError.message || "Database error",
+          details: process.env.NODE_ENV === "development" ? firestoreError.stack : undefined,
         },
         { status: 500, headers: { "Content-Type": "application/json" } }
       );

@@ -19,14 +19,17 @@ Make sure to set these environment variables in your Railway project settings:
 The Firebase client SDK uses hardcoded config in `lib/firebase/config.ts`, so no env vars needed for basic auth/database.
 
 ### Required for Firebase Admin SDK (Invoice PDF Generation)
-If you want invoice PDF generation to work, set these:
+**CRITICAL**: These are REQUIRED for invoice downloads to work. Without these, invoice generation will fail.
 
 - `FIREBASE_PROJECT_ID=kingsmodularllc`
 - `FIREBASE_CLIENT_EMAIL=your-service-account-email@kingsmodularllc.iam.gserviceaccount.com`
 - `FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"`
 - `FIREBASE_STORAGE_BUCKET=kingsmodularllc.firebasestorage.app`
 
-**Note:** The `FIREBASE_PRIVATE_KEY` must include the newlines (`\n`) and be wrapped in quotes.
+**Note:** 
+- The `FIREBASE_PRIVATE_KEY` must include the newlines (`\n`) and be wrapped in quotes.
+- These are required for the API route to access Firestore (server-side operations need Admin SDK).
+- Get these from Firebase Console → Project Settings → Service Accounts → Generate New Private Key
 
 ### Optional
 - `PUPPETEER_EXECUTABLE_PATH` - Only needed if you want to use a custom Chrome path (not needed on Railway)

@@ -5,30 +5,35 @@ let app: admin.app.App | null = null;
 let bucket: any = null;
 
 function initializeFirebaseAdmin() {
-  if (bucket) {
-    return bucket; // Already initialized
+  // If already initialized, return the app
+  if (app && admin.apps.length > 0) {
+    return app;
   }
 
   try {
     if (admin.apps.length === 0) {
       // Check for required environment variables
       if (!process.env.FIREBASE_PROJECT_ID) {
-        console.warn("FIREBASE_PROJECT_ID is not set - Firebase Storage will not be available");
-        return null;
+        const error = new Error("FIREBASE_PROJECT_ID is required for Firebase Admin SDK");
+        console.error("Firebase Admin initialization error:", error.message);
+        throw error;
       }
       if (!process.env.FIREBASE_CLIENT_EMAIL) {
-        console.warn("FIREBASE_CLIENT_EMAIL is not set - Firebase Storage will not be available");
-        return null;
+        const error = new Error("FIREBASE_CLIENT_EMAIL is required for Firebase Admin SDK");
+        console.error("Firebase Admin initialization error:", error.message);
+        throw error;
       }
       if (!process.env.FIREBASE_PRIVATE_KEY) {
-        console.warn("FIREBASE_PRIVATE_KEY is not set - Firebase Storage will not be available");
-        return null;
+        const error = new Error("FIREBASE_PRIVATE_KEY is required for Firebase Admin SDK");
+        console.error("Firebase Admin initialization error:", error.message);
+        throw error;
       }
 
       // Validate private key format
       if (!process.env.FIREBASE_PRIVATE_KEY.includes('BEGIN PRIVATE KEY')) {
-        console.warn("FIREBASE_PRIVATE_KEY appears to be malformed - Firebase Storage will not be available");
-        return null;
+        const error = new Error("FIREBASE_PRIVATE_KEY appears to be malformed");
+        console.error("Firebase Admin initialization error:", error.message);
+        throw error;
       }
 
       app = admin.initializeApp({
@@ -40,23 +45,34 @@ function initializeFirebaseAdmin() {
         }),
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
       });
+      console.log("Firebase Admin SDK initialized successfully");
     } else {
       app = admin.app();
     }
 
-    bucket = admin.storage().bucket();
-    return bucket;
+    return app;
   } catch (error: any) {
     console.error("Firebase Admin initialization error:", error.message);
-    console.error("Firebase Storage will not be available. PDFs will be returned directly.");
-    return null;
+    console.error("Error stack:", error.stack);
+    throw error;
   }
+}
+
+// Get Firebase Admin app instance (initializes if needed)
+export function getFirebaseAdminApp() {
+  if (!app) {
+    app = initializeFirebaseAdmin();
+  }
+  return app;
 }
 
 // Lazy initialization - only initialize when bucket is accessed
 export function getBucket() {
   if (!bucket) {
-    bucket = initializeFirebaseAdmin();
+    const adminApp = getFirebaseAdminApp();
+    if (adminApp) {
+      bucket = adminApp.storage().bucket();
+    }
   }
   return bucket;
 }
