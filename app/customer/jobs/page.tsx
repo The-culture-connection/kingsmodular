@@ -298,12 +298,23 @@ export default function CustomerJobsPage() {
         <div className="grid grid-cols-1 gap-6">
           {filteredJobs.map((job) => {
             // Normalize status to handle any casing or whitespace issues
-            const jobStatus = String(job.status || 'pending').toLowerCase().trim()
+            const rawStatus = job.status || 'pending'
+            const jobStatus = String(rawStatus).toLowerCase().trim()
             const status = statusConfig[jobStatus as keyof typeof statusConfig] || statusConfig.pending
             const StatusIcon = status.icon
             
             // Check if invoice download should be available (use normalized status)
-            const canDownloadInvoice = ['approved', 'outstanding', 'in_progress', 'paid'].includes(jobStatus)
+            const invoiceableStatuses = ['approved', 'outstanding', 'in_progress', 'paid']
+            const canDownloadInvoice = invoiceableStatuses.includes(jobStatus)
+            
+            // Debug logging - always log to help diagnose issues
+            console.log('Job Invoice Debug:', {
+              jobId: job.id,
+              rawStatus: rawStatus,
+              normalizedStatus: jobStatus,
+              canDownloadInvoice: canDownloadInvoice,
+              invoiceableStatuses: invoiceableStatuses,
+            })
 
             return (
               <div
@@ -373,7 +384,7 @@ export default function CustomerJobsPage() {
                 </div>
 
                 {/* Download Invoice Button - Show for approved, outstanding, in_progress, and paid */}
-                {canDownloadInvoice && (
+                {canDownloadInvoice ? (
                   <div className="flex justify-end pt-4 border-t border-accent/20">
                     <Button
                       onClick={() => handleDownloadInvoice(job)}
@@ -383,6 +394,12 @@ export default function CustomerJobsPage() {
                       <Download className="h-4 w-4 mr-2" />
                       Download Invoice
                     </Button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end pt-4 border-t border-accent/20">
+                    <p className="text-xs text-foreground/50 italic">
+                      Invoice available for: Approved, Outstanding, In Progress, or Paid (Current: {status.label})
+                    </p>
                   </div>
                 )}
               </div>
