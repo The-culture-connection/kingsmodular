@@ -4,6 +4,7 @@ export type { UserRole }
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   office_admin: 'Office Admin',
+  admin: 'Admin', // Alias for office_admin
   project_manager: 'Project Manager',
   bookkeeper: 'Bookkeeper',
   field_staff: 'Field Staff',
@@ -13,6 +14,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   office_admin: 'Full access to all features and settings',
+  admin: 'Full access to all features and settings', // Alias for office_admin
   project_manager: 'Manage jobs, schedule, and project updates',
   bookkeeper: 'Access to financials and accounting features',
   field_staff: 'Time tracking, mileage, and note uploads',
