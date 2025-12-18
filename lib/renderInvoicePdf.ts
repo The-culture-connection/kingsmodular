@@ -101,13 +101,20 @@ export async function renderInvoicePdf(html: string): Promise<Buffer> {
 
     console.log(`Launching Puppeteer in ${isServerless ? 'serverless' : 'local'} mode...`);
     console.log(`Executable path: ${executablePath}`);
+    console.log(`Launch args:`, launchArgs);
 
-    browser = await puppeteer.launch({
-      args: launchArgs,
-      defaultViewport: defaultViewport,
-      executablePath: executablePath,
-      headless: headless,
-    });
+    try {
+      browser = await puppeteer.launch({
+        args: launchArgs,
+        defaultViewport: defaultViewport,
+        executablePath: executablePath,
+        headless: headless,
+      });
+      console.log("Puppeteer browser launched successfully");
+    } catch (launchError: any) {
+      console.error("Puppeteer launch failed:", launchError);
+      throw new Error(`Failed to launch browser: ${launchError.message}. Make sure Chrome/Chromium is installed or set PUPPETEER_EXECUTABLE_PATH.`);
+    }
 
     const page = await browser.newPage();
     
