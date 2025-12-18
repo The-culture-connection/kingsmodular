@@ -1,0 +1,19 @@
+import { UserRole } from './types'
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  office_admin: 'Office Admin',
+  project_manager: 'Project Manager',
+  bookkeeper: 'Bookkeeper',
+  field_staff: 'Field Staff',
+  employee: 'Employee',
+  customer: 'Customer',
+}
+
+export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  office_admin: 'Full access to all features and settings',
+  project_manager: 'Manage jobs, schedule, and project updates',
+  bookkeeper: 'Access to financials and accounting features',
+  field_staff: 'Time tracking, mileage, and note uploads',
+  employee: 'Time tracking, mileage, and note uploads',
+  customer: 'View your projects, estimates, invoices, and communicate with the team',
+}
