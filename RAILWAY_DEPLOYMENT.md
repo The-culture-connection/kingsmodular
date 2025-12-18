@@ -21,13 +21,29 @@ The Firebase client SDK uses hardcoded config in `lib/firebase/config.ts`, so no
 ### Required for Firebase Admin SDK (Invoice PDF Generation)
 **CRITICAL**: These are REQUIRED for invoice downloads to work. Without these, invoice generation will fail with a 500 error.
 
-**See `FIREBASE_ADMIN_SETUP.md` for detailed step-by-step instructions.**
+**IMPORTANT - Railway Variable Types:**
+- **Service Variables** (recommended): Set directly on your service - these are immediately available
+- **Shared Variables**: Set at project level - must be referenced using `${{VARIABLE_NAME}}` syntax in service variables
 
-Quick setup:
-- `FIREBASE_PROJECT_ID=kingsmodularllc`
-- `FIREBASE_CLIENT_EMAIL=your-service-account-email@kingsmodularllc.iam.gserviceaccount.com`
-- `FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"`
-- `FIREBASE_STORAGE_BUCKET=kingsmodularllc.firebasestorage.app`
+**Option 1: Service Variables (Easiest)**
+1. Go to your Railway service (not project settings)
+2. Click on the service → **Variables** tab
+3. Add these 4 variables directly:
+   - `FIREBASE_PROJECT_ID=kingsmodularllc`
+   - `FIREBASE_CLIENT_EMAIL=your-service-account-email@kingsmodularllc.iam.gserviceaccount.com`
+   - `FIREBASE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n`
+   - `FIREBASE_STORAGE_BUCKET=kingsmodularllc.firebasestorage.app`
+
+**Option 2: Reference Shared Variables**
+If you've set them as Shared Variables, you need to reference them in your service:
+1. Go to your Railway service → **Variables** tab
+2. Add these variables with references:
+   - `FIREBASE_PROJECT_ID=${{FIREBASE_PROJECT_ID}}`
+   - `FIREBASE_CLIENT_EMAIL=${{FIREBASE_CLIENT_EMAIL}}`
+   - `FIREBASE_PRIVATE_KEY=${{FIREBASE_PRIVATE_KEY}}`
+   - `FIREBASE_STORAGE_BUCKET=${{FIREBASE_STORAGE_BUCKET}}`
+
+**See `FIREBASE_ADMIN_SETUP.md` for detailed step-by-step instructions.**
 
 **How to Get Firebase Admin Credentials:**
 1. Go to [Firebase Console](https://console.firebase.google.com/)

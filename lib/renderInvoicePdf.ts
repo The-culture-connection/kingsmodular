@@ -4,7 +4,15 @@ import { existsSync } from "fs";
 import { platform } from "os";
 
 // Determine if we're running in a serverless environment
-const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.FUNCTION_TARGET);
+// Railway, Vercel, AWS Lambda, and other serverless platforms
+const isServerless = !!(
+  process.env.VERCEL || 
+  process.env.AWS_LAMBDA_FUNCTION_NAME || 
+  process.env.FUNCTION_TARGET ||
+  process.env.RAILWAY_ENVIRONMENT || // Railway sets this
+  process.env.RAILWAY_SERVICE_NAME || // Railway sets this
+  process.env.NODE_ENV === 'production' // Fallback: assume production is serverless
+);
 
 /**
  * Find Chrome executable path for local development
@@ -56,11 +64,18 @@ export async function renderInvoicePdf(html: string): Promise<Buffer> {
 
     if (isServerless) {
       // Serverless environment: use @sparticuz/chromium
-      executablePath = await chromium.executablePath();
-      launchArgs = chromium.args || [];
-      defaultViewport = { width: 1280, height: 720 };
-      headless = true; // Always headless in serverless
-      console.log('Using serverless Chromium');
+      console.log('Detected serverless environment, using @sparticuz/chromium');
+      try {
+        executablePath = await chromium.executablePath();
+        launchArgs = chromium.args || [];
+        defaultViewport = { width: 1280, height: 720 };
+        headless = true; // Always headless in serverless
+        console.log('Chromium executable path obtained:', executablePath);
+        console.log('Chromium args count:', launchArgs.length);
+      } catch (chromiumError: any) {
+        console.error('Failed to get Chromium executable:', chromiumError);
+        throw new Error(`Failed to initialize Chromium for serverless: ${chromiumError.message}`);
+      }
     } else {
       // Local development: try to use system Chrome/Chromium
       if (process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -97,8 +112,17 @@ export async function renderInvoicePdf(html: string): Promise<Buffer> {
     }
 
     console.log(`Launching Puppeteer in ${isServerless ? 'serverless' : 'local'} mode...`);
+    console.log(`Environment detection:`, {
+      isServerless: isServerless,
+      vercel: !!process.env.VERCEL,
+      railway: !!(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_SERVICE_NAME),
+      nodeEnv: process.env.NODE_ENV,
+    });
     console.log(`Executable path: ${executablePath}`);
-    console.log(`Launch args:`, launchArgs);
+    console.log(`Launch args count: ${launchArgs.length}`);
+    if (launchArgs.length > 0) {
+      console.log(`First few launch args:`, launchArgs.slice(0, 5));
+    }
 
     try {
       browser = await puppeteer.launch({
@@ -113,22 +137,43 @@ export async function renderInvoicePdf(html: string): Promise<Buffer> {
       throw new Error(`Failed to launch browser: ${launchError.message}. Make sure Chrome/Chromium is installed or set PUPPETEER_EXECUTABLE_PATH.`);
     }
 
+    console.log("Creating new page...");
     const page = await browser.newPage();
+    console.log("Page created successfully");
     
     // Set content with timeout
-    await page.setContent(html, { 
-      waitUntil: "networkidle0",
-      timeout: 30000, // 30 second timeout
-    });
+    console.log("Setting HTML content (length:", html.length, "chars)...");
+    try {
+      await page.setContent(html, { 
+        waitUntil: "networkidle0",
+        timeout: 30000, // 30 second timeout
+      });
+      console.log("HTML content set successfully");
+    } catch (contentError: any) {
+      console.error("Failed to set content:", contentError);
+      throw new Error(`Failed to set HTML content: ${contentError.message}`);
+    }
 
     // Generate PDF
-    const pdf = await page.pdf({
-      format: "Letter",
-      printBackground: true,
-      margin: { top: "24px", right: "24px", bottom: "24px", left: "24px" },
-    });
+    console.log("Generating PDF...");
+    let pdf: Buffer;
+    try {
+      const pdfData = await page.pdf({
+        format: "Letter",
+        printBackground: true,
+        margin: { top: "24px", right: "24px", bottom: "24px", left: "24px" },
+        timeout: 30000, // 30 second timeout
+      });
+      pdf = Buffer.from(pdfData);
+      console.log("PDF generated successfully, size:", pdf.length, "bytes");
+    } catch (pdfError: any) {
+      console.error("PDF generation failed:", pdfError);
+      console.error("PDF error name:", pdfError.name);
+      console.error("PDF error message:", pdfError.message);
+      throw new Error(`Failed to generate PDF: ${pdfError.message}`);
+    }
 
-    return Buffer.from(pdf);
+    return pdf;
   } catch (error: any) {
     console.error("Puppeteer error:", error);
     throw new Error(`PDF generation failed: ${error.message || "Unknown error"}`);

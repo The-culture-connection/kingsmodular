@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "variables": {
+    "FIREBASE_PROJECT_ID": "${{FIREBASE_PROJECT_ID}}",
+    "FIREBASE_CLIENT_EMAIL": "${{FIREBASE_CLIENT_EMAIL}}",
+    "FIREBASE_PRIVATE_KEY": "${{FIREBASE_PRIVATE_KEY}}",
+    "FIREBASE_STORAGE_BUCKET": "${{FIREBASE_STORAGE_BUCKET}}"
+  },
+  "note": "This file is for reference only. Railway doesn't support importing variables from files. You must set these in the Railway UI: Service → Variables tab, using the ${{}} syntax to reference your Shared Variables."
+}
+
