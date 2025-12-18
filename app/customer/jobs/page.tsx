@@ -121,19 +121,35 @@ export default function CustomerJobsPage() {
         }),
       })
 
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text()
-        console.error('Non-JSON response:', text.substring(0, 200))
-        throw new Error('Server returned an invalid response. Please check the console for details.')
-      }
+             // Check if response is JSON
+             const contentType = response.headers.get('content-type')
+             if (!contentType || !contentType.includes('application/json')) {
+               const text = await response.text()
+               console.error('Non-JSON response from server:', text.substring(0, 500))
+               console.error('Response status:', response.status)
+               console.error('Response headers:', Object.fromEntries(response.headers.entries()))
+               throw new Error(`Server returned an invalid response (${response.status}). Please check the console for details.`)
+             }
 
-      const data = await response.json()
+             const data = await response.json()
+             console.log('Invoice API response:', {
+               success: data.success,
+               hasSignedUrl: !!data.signedUrl,
+               hasPdfBase64: !!data.pdfBase64,
+               error: data.error,
+               message: data.message
+             })
 
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Failed to generate invoice')
-      }
+             if (!response.ok) {
+               console.error('Invoice API error response:', {
+                 status: response.status,
+                 statusText: response.statusText,
+                 error: data.error,
+                 message: data.message,
+                 details: data.details
+               })
+               throw new Error(data.error || data.message || `Failed to generate invoice (${response.status})`)
+             }
 
       // Handle both signed URL and base64 PDF responses
       if (data.signedUrl) {

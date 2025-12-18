@@ -10,13 +10,20 @@ export async function POST(req: Request) {
   console.log(`[${requestId}] Request started at:`, new Date().toISOString());
   console.log(`[${requestId}] Request URL:`, req.url);
   console.log(`[${requestId}] Request method:`, req.method);
+  console.log(`[${requestId}] Request headers:`, Object.fromEntries(req.headers.entries()));
   
   try {
     // Parse request body
     let body;
     try {
       const bodyText = await req.text();
+      console.log(`[${requestId}] Raw request body length:`, bodyText.length);
       console.log(`[${requestId}] Raw request body (first 500 chars):`, bodyText.substring(0, 500));
+      
+      if (!bodyText || bodyText.trim().length === 0) {
+        throw new Error("Request body is empty");
+      }
+      
       body = JSON.parse(bodyText);
       console.log(`[${requestId}] Request body parsed successfully:`, { 
         estimateId: body.estimateId, 
@@ -27,9 +34,15 @@ export async function POST(req: Request) {
       });
     } catch (parseError: any) {
       console.error(`[${requestId}] Request body parse error:`, parseError);
+      console.error(`[${requestId}] Parse error name:`, parseError.name);
+      console.error(`[${requestId}] Parse error message:`, parseError.message);
       console.error(`[${requestId}] Parse error stack:`, parseError.stack);
       return NextResponse.json(
-        { error: "Invalid request body", message: parseError.message },
+        { 
+          error: "Invalid request body", 
+          message: parseError.message,
+          requestId: requestId
+        },
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -65,18 +78,50 @@ export async function POST(req: Request) {
       console.log(`[${requestId}] Estimate IDs found:`, estimates.map(e => e.id));
       console.log(`[${requestId}] Estimate statuses:`, estimates.map(e => ({ id: e.id, status: e.status })));
     } catch (firestoreError: any) {
-      console.error(`[${requestId}] Firestore Admin error:`, firestoreError);
+      console.error(`[${requestId}] ========== FIRESTORE ADMIN ERROR ==========`);
       console.error(`[${requestId}] Error name:`, firestoreError.name);
       console.error(`[${requestId}] Error message:`, firestoreError.message);
+      console.error(`[${requestId}] Error code:`, (firestoreError as any).code);
       console.error(`[${requestId}] Error stack:`, firestoreError.stack);
-      console.error(`[${requestId}] Full error object:`, JSON.stringify(firestoreError, Object.getOwnPropertyNames(firestoreError)));
+      
+      // Try to get more details
+      try {
+        const errorDetails = {
+          name: firestoreError.name,
+          message: firestoreError.message,
+          code: (firestoreError as any).code,
+          stack: firestoreError.stack,
+          ...Object.getOwnPropertyNames(firestoreError).reduce((acc, key) => {
+            try {
+              acc[key] = (firestoreError as any)[key];
+            } catch (e) {
+              acc[key] = '[Unable to serialize]';
+            }
+            return acc;
+          }, {} as any)
+        };
+        console.error(`[${requestId}] Full error details:`, JSON.stringify(errorDetails, null, 2));
+      } catch (serializeError) {
+        console.error(`[${requestId}] Could not serialize error object:`, serializeError);
+      }
+      
+      console.error(`[${requestId}] ===========================================`);
+      
       return NextResponse.json(
         {
           error: "Failed to fetch estimate",
           message: firestoreError.message || "Database error",
+          errorCode: (firestoreError as any).code,
+          requestId: requestId,
           details: process.env.NODE_ENV === "development" ? firestoreError.stack : undefined,
         },
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { 
+          status: 500, 
+          headers: { 
+            "Content-Type": "application/json",
+            "X-Request-ID": requestId
+          } 
+        }
       );
     }
     
@@ -282,6 +327,8 @@ export async function POST(req: Request) {
         error: "Failed to generate invoice",
         message: error.message || "Unknown error occurred",
         errorName: error.name,
+        errorCode: (error as any).code,
+        requestId: requestId,
         details: process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
       { 
@@ -289,6 +336,7 @@ export async function POST(req: Request) {
         headers: { 
           "Content-Type": "application/json",
           "X-Error-Type": error.name || "Unknown",
+          "X-Request-ID": requestId,
         },
       }
     );
