@@ -39,7 +39,10 @@ export function ProtectedRoute({
     return null
   }
 
-  if (requireApproval && user.approvalStatus !== 'approved') {
+  // Skip approval check for customers (they are auto-approved)
+  const needsApproval = requireApproval && user.role !== 'customer' && user.approvalStatus !== 'approved'
+  
+  if (needsApproval) {
     if (user.approvalStatus === 'pending') {
       router.push('/auth/pending-approval')
       return null

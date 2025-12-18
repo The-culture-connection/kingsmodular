@@ -6,12 +6,9 @@ import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 import {
   LayoutDashboard,
-  Briefcase,
   FileText,
-  Receipt,
-  MessageSquare,
-  User,
-  HelpCircle,
+  DollarSign,
+  Briefcase,
   Menu,
   X,
   LogOut,
@@ -22,12 +19,8 @@ import { Button } from '@/components/ui/button'
 
 const customerNavItems = [
   { href: '/customer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/customer/quote', label: 'Get a Quote', icon: FileText },
   { href: '/customer/jobs', label: 'My Jobs', icon: Briefcase },
-  { href: '/customer/estimates', label: 'Estimates', icon: FileText },
-  { href: '/customer/invoices', label: 'Invoices & Payments', icon: Receipt },
-  { href: '/customer/messages', label: 'Messages / Updates', icon: MessageSquare },
-  { href: '/customer/profile', label: 'Profile & Company Info', icon: User },
-  { href: '/customer/support', label: 'Support', icon: HelpCircle },
 ]
 
 export function CustomerLayout({ children }: { children: React.ReactNode }) {
@@ -86,7 +79,7 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-accent text-base'
+                      ? 'bg-accent/20 text-accent border-l-4 border-accent'
                       : 'text-foreground hover:bg-foreground/10'
                   )}
                 >
@@ -127,7 +120,7 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="p-3 sm:p-4 lg:p-5">{children}</main>
       </div>
     </div>
   )

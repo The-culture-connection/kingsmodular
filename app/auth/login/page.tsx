@@ -6,21 +6,37 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/lib/auth-context'
+import { useToast } from '@/lib/toast-context'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login } = useAuth()
+  const { showToast } = useToast()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     setIsLoading(true)
-    // TODO: Implement authentication
-    setTimeout(() => {
+    
+    try {
+      await login(email, password)
+      showToast('Signed in successfully!', 'success')
+      // Wait a moment for auth state to update, then redirect based on role
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 100)
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to sign in. Please check your credentials.'
+      setError(errorMessage)
+      showToast(errorMessage, 'error')
+    } finally {
       setIsLoading(false)
-      router.push('/dashboard')
-    }, 1000)
+    }
   }
 
   return (
@@ -31,7 +47,7 @@ export default function LoginPage() {
           <Link href="/" className="block mb-8">
             <Image
               src="/Assets/Logos/PrimaryLogoWhite.png"
-              alt="Kings Modular"
+              alt="Kings Modular LLC."
               width={200}
               height={60}
               className="h-16 w-auto"
@@ -40,6 +56,12 @@ export default function LoginPage() {
 
           <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back</h1>
           <p className="text-foreground/70 mb-8">Sign in to your account</p>
+
+          {error && (
+            <div className="mb-6 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <Input

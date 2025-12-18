@@ -66,7 +66,7 @@ export default function Home() {
           playsInline
           className="absolute w-full h-full object-cover opacity-20"
         >
-          <source src="/Assets/Videos/Homescreenvid.mp4" type="video/mp4" />
+          <source src="public\Assets\Videos\jobsiteanim.mp4" type="video/mp4" />
         </video>
         <div className="relative z-10 container mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="flex flex-col items-center text-center mb-16">
@@ -80,7 +80,7 @@ export default function Home() {
               />
             </div>
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold mb-8 font-gotham text-foreground drop-shadow-2xl max-w-5xl leading-tight">
-              Your Trusted Partner for Mobile Office Trailer Services
+              The Gold Standard of Jobsite Offices
             </h1>
             <p className="text-2xl md:text-3xl mb-10 text-foreground/95 font-medium max-w-4xl drop-shadow-lg">
               Quick and safe solutions with experienced teams that can handle any size project
@@ -108,29 +108,24 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Our Services Section */}
+      {/* Our Reach Section */}
       <section className="py-20 bg-base border-t border-accent/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 font-gotham text-foreground">Our Reach</h2>
           </div>
-        </div>
-      </section>
-
-      {/* Service Area Section */}
-      <section className="py-20 bg-base">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6 font-gotham text-foreground">
-                Proudly serving the entire east half of the US— and beyond for large-scale work
+                Providing services throughout the eastern United States, with nationwide capability for large-scale projects.
               </h2>
               <p className="text-xl text-foreground/90 mb-6 leading-relaxed">
-                From the East Coast to cross-country projects, we deliver high-quality modular solutions with speed, precision, and minimal disruption. Commercial or custom — we go where the work takes us.
+                Providing service throughout the eastern United States and nationwide for large-scale engagements.
               </p>
             </div>
             <div className="relative h-64 md:h-96 rounded-lg overflow-hidden border border-accent/20">
               <Image
-                src="/Assets/General Photos/image3.jpeg"
+                src="/Assets/General Photos/image3.png"
                 alt="Mobile office trailer services"
                 fill
                 className="object-cover"
@@ -197,7 +192,7 @@ export default function Home() {
             <div>
               <div className="relative h-64 rounded-lg overflow-hidden mb-6 border border-accent/20">
                 <Image
-                  src="/Assets/General Photos/Image2.jpeg"
+                  src="/Assets/General Photos/Image2.png"
                   alt="Handling Any Size Complex"
                   fill
                   className="object-cover"

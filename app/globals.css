@@ -2,14 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@import 'react-day-picker/dist/style.css';
+
 @layer base {
   :root {
     --background: #000000;
     --foreground: #ffffff;
-    --primary: #aa9550;
+    --primary: #b39441;
     --primary-foreground: #ffffff;
     --base: #000000;
-    --accent: #aa9550;
+    --accent: #b39441;
   }
 
   body {
@@ -36,4 +38,58 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-gray-400;
   }
+}
+
+/* React Day Picker - Gold Theme */
+.rdp-gold {
+  font-family: var(--font-gotham), sans-serif !important;
+}
+
+.rdp-gold * {
+  font-family: var(--font-gotham), sans-serif !important;
+}
+
+/* Start & end of range */
+.rdp-gold .rdp-day_range_start,
+.rdp-gold .rdp-day_range_end,
+.rdp-gold .rdp-day_selected {
+  background-color: #9c7a1a !important;
+  color: #ffffff !important;
+  border: 2px solid #aa9550 !important;
+  border-radius: 0.5rem !important;
+  font-weight: 600 !important;
+}
+
+/* Middle of range */
+.rdp-gold .rdp-day_range_middle {
+  background-color: rgba(156, 122, 26, 0.25) !important;
+  color: #ffffff !important;
+}
+
+/* Hover states */
+.rdp-gold .rdp-day:hover:not(.rdp-day_disabled):not(.rdp-day_selected) {
+  background-color: rgba(170, 149, 80, 0.18) !important;
+}
+
+.rdp-gold .rdp-day {
+  color: #ffffff !important;
+}
+
+.rdp-gold .rdp-head_cell {
+  color: #aa9550 !important;
+}
+
+.rdp-gold .rdp-caption_label {
+  color: #ffffff !important;
+}
+
+.rdp-gold .rdp-nav_button,
+.rdp-gold .rdp-nav_button svg,
+.rdp-gold .rdp-nav_button path {
+  color: #aa9550 !important;
+  fill: #aa9550 !important;
+}
+
+.rdp-gold .rdp-nav_button:hover {
+  background-color: rgba(170, 149, 80, 0.2) !important;
 }

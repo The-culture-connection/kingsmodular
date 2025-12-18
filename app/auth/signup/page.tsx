@@ -7,7 +7,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/lib/constants'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/lib/constants'
+import { UserRole } from '@/lib/types'
+import { signupUser } from '@/lib/firebase/auth'
+import { useToast } from '@/lib/toast-context'
 
 const INTERNAL_ROLES: UserRole[] = ['office_admin', 'project_manager', 'bookkeeper', 'field_staff', 'employee']
 const CUSTOMER_ROLE: UserRole = 'customer'
@@ -15,6 +18,7 @@ const CUSTOMER_ROLE: UserRole = 'customer'
 export default function SignupPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { showToast } = useToast()
   const [step, setStep] = useState(1)
   const [role, setRole] = useState<UserRole | ''>('')
   const [formData, setFormData] = useState({
@@ -26,6 +30,7 @@ export default function SignupPage() {
     companyType: '',
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   // Check for role query parameter (e.g., ?role=customer from "Request a quote")
   useEffect(() => {
@@ -45,20 +50,35 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     setIsLoading(true)
     
-    // TODO: Implement signup API call
-    // For internal roles, redirect to pending approval page
-    // For customers, redirect to dashboard after signup
-    
-    setTimeout(() => {
-      setIsLoading(false)
+    try {
+      await signupUser({
+        email: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        role: role as string,
+        companyName: formData.companyName,
+        companyType: formData.companyType,
+      })
+
+      showToast('Account created successfully! Please check your email to verify your account.', 'success')
+      
+      // For internal roles, redirect to pending approval page
+      // For customers, redirect directly to customer dashboard
       if (isInternalRole) {
         router.push('/auth/pending-approval')
       } else {
-        router.push('/dashboard')
+        router.push('/customer/dashboard')
       }
-    }, 1000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account')
+      showToast(err.message || 'Failed to create account', 'error')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleChange = (field: string, value: string) => {
@@ -73,7 +93,7 @@ export default function SignupPage() {
           <Link href="/" className="block mb-8">
             <Image
               src="/Assets/Logos/PrimaryLogoWhite.png"
-              alt="Kings Modular"
+              alt="Kings Modular LLC"
               width={200}
               height={60}
               className="h-16 w-auto"
@@ -124,21 +144,60 @@ export default function SignupPage() {
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="First Name"
-                    value={formData.firstName}
-                    onChange={(e) => handleChange('firstName', e.target.value)}
-                    required
-                  />
-                  <Input
-                    label="Last Name"
-                    value={formData.lastName}
-                    onChange={(e) => handleChange('lastName', e.target.value)}
-                    required
-                  />
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                  {error}
                 </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {isInternalRole && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label="First Name"
+                        value={formData.firstName}
+                        onChange={(e) => handleChange('firstName', e.target.value)}
+                        required
+                      />
+                      <Input
+                        label="Last Name"
+                        value={formData.lastName}
+                        onChange={(e) => handleChange('lastName', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <Input
+                      label="Company Name"
+                      value={formData.companyName}
+                      onChange={(e) => handleChange('companyName', e.target.value)}
+                      required
+                    />
+                  </>
+                )}
+
+                {role === CUSTOMER_ROLE && (
+                  <>
+                    <Input
+                      label="Company Name"
+                      value={formData.companyName}
+                      onChange={(e) => handleChange('companyName', e.target.value)}
+                      required
+                    />
+                    <Select
+                      label="Company Type"
+                      value={formData.companyType}
+                      onChange={(e) => handleChange('companyType', e.target.value)}
+                      options={[
+                        { value: '', label: 'Select company type...' },
+                        { value: 'residential', label: 'Residential' },
+                        { value: 'commercial', label: 'Commercial' },
+                        { value: 'industrial', label: 'Industrial' },
+                        { value: 'other', label: 'Other' },
+                      ]}
+                    />
+                  </>
+                )}
 
                 <Input
                   label="Email"
@@ -155,38 +214,8 @@ export default function SignupPage() {
                   onChange={(e) => handleChange('password', e.target.value)}
                   required
                   minLength={8}
+                  placeholder="Minimum 8 characters"
                 />
-
-                {isInternalRole && (
-                  <Input
-                    label="Company Name"
-                    value={formData.companyName}
-                    onChange={(e) => handleChange('companyName', e.target.value)}
-                    required
-                  />
-                )}
-
-                {role === CUSTOMER_ROLE && (
-                  <>
-                    <Input
-                      label="Company Name"
-                      value={formData.companyName}
-                      onChange={(e) => handleChange('companyName', e.target.value)}
-                      required
-                    />
-                    <Select
-                      label="Company Type"
-                      value={formData.companyType}
-                      onChange={(e) => handleChange('companyType', e.target.value)}
-                      options={[
-                        { value: 'residential', label: 'Residential' },
-                        { value: 'commercial', label: 'Commercial' },
-                        { value: 'industrial', label: 'Industrial' },
-                        { value: 'other', label: 'Other' },
-                      ]}
-                    />
-                  </>
-                )}
 
                 <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
                   Create Account

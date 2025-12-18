@@ -11,13 +11,17 @@ export default function DashboardRedirectPage() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      // Redirect based on role
+      // Redirect based on role - customers always go to customer dashboard
       if (user.role === 'customer') {
         router.push('/customer/dashboard')
       } else if (user.role === 'field_staff' || user.role === 'employee') {
         router.push('/field/dashboard')
-      } else {
+      } else if (user.approvalStatus === 'approved') {
         router.push('/admin/dashboard')
+      } else if (user.approvalStatus === 'pending') {
+        router.push('/auth/pending-approval')
+      } else {
+        router.push('/auth/login')
       }
     } else if (!isLoading && !user) {
       router.push('/auth/login')

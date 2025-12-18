@@ -9,15 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.3.4",
+    "@sparticuz/chromium": "^143.0.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "firebase": "^12.7.0",
+    "firebase-admin": "^13.6.0",
+    "lucide-react": "^0.424.0",
     "next": "14.2.5",
+    "puppeteer-core": "^24.33.0",
     "react": "^18.3.1",
+    "react-day-picker": "^9.12.0",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.1",
-    "zod": "^3.23.8",
-    "@hookform/resolvers": "^3.3.4",
-    "lucide-react": "^0.424.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.4.0"
+    "tailwind-merge": "^2.4.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.12",
