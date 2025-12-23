@@ -726,10 +726,6 @@ export default function JobSuitePage() {
                 Create Job
               </Button>
             </Link>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Camera className="h-4 w-4" />
-              Upload Photos
-            </Button>
           </div>
         </div>
 
@@ -1044,10 +1040,6 @@ export default function JobSuitePage() {
                   )}
                   {selectedJob.status === 'in_progress' && (
                     <>
-                      <Button variant="outline" className="w-full justify-start">
-                        <Camera className="h-4 w-4 mr-2" />
-                        Upload Photos
-                      </Button>
                       <Button variant="outline" className="w-full justify-start">
                         <BarChart3 className="h-4 w-4 mr-2" />
                         View Cost Breakdown
@@ -1629,19 +1621,29 @@ export default function JobSuitePage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-foreground">Job Photos</h3>
-                    <label className="cursor-pointer">
+                    <div>
                       <input
                         type="file"
+                        id="photo-upload-input"
                         multiple
                         accept="image/*"
                         onChange={(e) => handlePhotoUpload(e.target.files)}
                         className="hidden"
                       />
-                      <Button variant="primary">
+                      <Button 
+                        variant="primary"
+                        onClick={() => {
+                          const input = document.getElementById('photo-upload-input')
+                          if (input) {
+                            input.click()
+                          }
+                        }}
+                        disabled={uploadingPhotos}
+                      >
                         <Camera className="h-4 w-4 mr-2" />
                         {uploadingPhotos ? 'Uploading...' : 'Upload Photos'}
                       </Button>
-                    </label>
+                    </div>
                   </div>
 
                   {jobPhotos.length > 0 ? (

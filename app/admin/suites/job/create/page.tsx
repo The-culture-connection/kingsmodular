@@ -2,21 +2,24 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, MapPin, Plus, Camera, DollarSign } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowLeft, MapPin, CheckCircle2, DollarSign, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StateSelect } from '@/components/ui/state-select'
 import { DatePicker } from '@/components/ui/date-picker'
+import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/lib/toast-context'
 import { getJobs, createPendingEstimate, Job } from '@/lib/firebase/firestore'
 import { cn } from '@/lib/utils'
 
 export default function CreateJobPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const { showToast } = useToast()
   const [jobs, setJobs] = useState<Job[]>([])
   const [selectedJobs, setSelectedJobs] = useState<string[]>([])
-  const [startDate, setStartDate] = useState('')
+  const [selectedDate, setSelectedDate] = useState('')
   const [streetAddress, setStreetAddress] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
@@ -53,6 +56,11 @@ export default function CreateJobPage() {
     return sum + (job?.price || 0)
   }, 0)
 
+  const totalTimeEstimate = selectedJobs.reduce((sum, jobId) => {
+    const job = jobs.find((j) => j.id === jobId)
+    return sum + (job?.timeEstimate || 0)
+  }, 0)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -61,8 +69,8 @@ export default function CreateJobPage() {
       return
     }
 
-    if (!startDate) {
-      showToast('Please select a start date', 'error')
+    if (!selectedDate) {
+      showToast('Please select a date', 'error')
       return
     }
 
@@ -75,30 +83,23 @@ export default function CreateJobPage() {
       setIsSubmitting(true)
       const selectedJobsData = jobs.filter((job) => selectedJobs.includes(job.id))
 
-      // Calculate total days from time estimates
-      const totalDays = selectedJobsData.reduce((sum, job) => sum + (job.timeEstimate || 0), 0)
-      
-      // Calculate end date from start date + total days
-      const start = new Date(startDate)
-      const end = new Date(start)
-      end.setDate(end.getDate() + totalDays)
-      const endDateString = end.toISOString().split('T')[0]
-
       const fullLocation = `${streetAddress.trim()}, ${city.trim()}, ${state} ${zipCode.trim()}`
 
-      // Use a system/admin user ID - in production, you'd get this from auth
-      const adminUserId = 'system' // TODO: Get from auth context
+      // Calculate end date based on selected date + total time estimate
+      const startDateObj = new Date(selectedDate)
+      const endDateObj = new Date(startDateObj)
+      endDateObj.setDate(endDateObj.getDate() + totalTimeEstimate)
 
       await createPendingEstimate({
-        uid: adminUserId,
-        customerId: adminUserId,
-        customerEmail: 'admin@kingsmodular.com',
-        customerCompanyName: 'Kings Modular',
+        uid: user?.id || 'admin',
+        customerId: user?.id || 'admin',
+        customerEmail: user?.email || 'admin@kingsmodular.com',
+        customerCompanyName: user?.companyName || 'Kings Modular',
         jobs: selectedJobsData,
         totalPrice,
         dateRange: {
-          start: startDate,
-          end: endDateString,
+          start: selectedDate,
+          end: endDateObj.toISOString().split('T')[0],
         },
         location: fullLocation,
         status: 'draft',
@@ -122,8 +123,30 @@ export default function CreateJobPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="mb-6">
+    <div className="relative">
+      {/* Total Price and Time Estimation Display - Upper Right (Horizontal) */}
+      <div className="absolute top-0 right-0 bg-accent/20 border border-accent rounded-lg p-4 mb-4">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-accent" />
+            <div>
+              <p className="text-sm text-foreground/70">Total Price</p>
+              <p className="text-2xl font-bold text-accent">${totalPrice.toLocaleString()}</p>
+            </div>
+          </div>
+          {totalTimeEstimate > 0 && (
+            <div className="flex items-center gap-2 border-l border-accent/30 pl-6">
+              <Clock className="h-5 w-5 text-accent" />
+              <div>
+                <p className="text-sm text-foreground/70">Time Estimate</p>
+                <p className="text-xl font-bold text-accent">{totalTimeEstimate} {totalTimeEstimate === 1 ? 'day' : 'days'}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-6 pr-48">
         <Link href="/admin/suites/job" className="text-accent hover:underline mb-2 inline-flex items-center gap-2">
           <ArrowLeft className="h-4 w-4" />
           Back to Job Suite
@@ -136,32 +159,11 @@ export default function CreateJobPage() {
         {/* Date and Location */}
         <div className="bg-base border border-accent/20 rounded-lg p-6 space-y-4">
           <DatePicker
-            date={startDate}
-            onDateChange={setStartDate}
+            date={selectedDate}
+            onDateChange={setSelectedDate}
+            label="Project Start Date"
             required
-            label="Start Date"
           />
-          {selectedJobs.length > 0 && (() => {
-            const totalDays = jobs.filter(j => selectedJobs.includes(j.id))
-              .reduce((sum, job) => sum + (job.timeEstimate || 0), 0)
-            const endDate = startDate ? (() => {
-              const start = new Date(startDate)
-              const end = new Date(start)
-              end.setDate(end.getDate() + totalDays)
-              return end.toISOString().split('T')[0]
-            })() : ''
-            return totalDays > 0 ? (
-              <div className="bg-accent/10 border border-accent/20 rounded-lg p-3">
-                <div className="text-sm text-foreground/70">Estimated Duration</div>
-                <div className="font-semibold text-foreground">{totalDays} day{totalDays !== 1 ? 's' : ''}</div>
-                {endDate && (
-                  <div className="text-xs text-foreground/60 mt-1">
-                    Expected completion: {new Date(endDate).toLocaleDateString()}
-                  </div>
-                )}
-              </div>
-            ) : null
-          })()}
           <div className="space-y-4">
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
@@ -229,34 +231,25 @@ export default function CreateJobPage() {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="font-semibold text-foreground">{job.name}</h3>
+                    {isSelected && (
+                      <CheckCircle2 className="h-5 w-5 text-accent flex-shrink-0 ml-2" />
+                    )}
                   </div>
                   <p className="text-sm text-foreground/70 mb-3">{job.description}</p>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-lg font-bold text-accent">
-                        ${job.price.toLocaleString()}
-                      </span>
-                      {job.timeEstimate && (
-                        <div className="text-xs text-foreground/60 mt-1">
-                          {job.timeEstimate} day{job.timeEstimate !== 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-lg font-bold text-accent">
+                      ${job.price.toLocaleString()}
+                    </span>
                   </div>
+                  {job.timeEstimate && job.timeEstimate > 0 && (
+                    <div className="flex items-center gap-1 text-sm text-foreground/70">
+                      <Clock className="h-4 w-4" />
+                      <span>{job.timeEstimate} {job.timeEstimate === 1 ? 'day' : 'days'}</span>
+                    </div>
+                  )}
                 </div>
               )
             })}
-          </div>
-        </div>
-
-        {/* Total Price */}
-        <div className="bg-accent/20 border border-accent rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-accent" />
-            <div>
-              <p className="text-sm text-foreground/70">Total</p>
-              <p className="text-2xl font-bold text-accent">${totalPrice.toLocaleString()}</p>
-            </div>
           </div>
         </div>
 
@@ -275,7 +268,7 @@ export default function CreateJobPage() {
             variant="primary"
             size="lg"
             isLoading={isSubmitting}
-            disabled={selectedJobs.length === 0 || !startDate || !streetAddress.trim() || !city.trim() || !state || !zipCode.trim()}
+            disabled={selectedJobs.length === 0 || !selectedDate || !streetAddress.trim() || !city.trim() || !state || !zipCode.trim()}
             className="bg-accent hover:bg-accent/90"
           >
             Create Job
