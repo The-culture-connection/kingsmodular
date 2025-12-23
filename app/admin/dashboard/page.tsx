@@ -98,7 +98,7 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div>
+    <div className="p-6 md:p-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
         <p className="text-foreground/70">Manage your operations across all suites</p>

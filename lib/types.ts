@@ -1,29 +1,26 @@
-export type UserRole = 
-  | 'office_admin'
-  | 'admin' // Alias for office_admin (for backward compatibility)
-  | 'project_manager' 
-  | 'bookkeeper' 
-  | 'field_staff' 
-  | 'employee'
-  | 'customer'
+export type UserRole = 'office_admin' | 'project_manager' | 'bookkeeper' | 'field_staff' | 'employee' | 'customer' | 'admin'
 
 export type ApprovalStatus = 'pending' | 'approved' | 'denied'
 
 export interface User {
   id: string
   email: string
-  firstName: string
-  lastName: string
   role: UserRole
-  companyId?: string
-  companyName?: string
   approvalStatus: ApprovalStatus
-  createdAt: Date
+  firstName?: string
+  lastName?: string
+  displayName?: string
+  companyName?: string
+  companyType?: string
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface Company {
-  id: string
   name: string
-  type: 'internal' | 'customer'
-  createdAt: Date
+  type: string
+  address?: string
+  phone?: string
+  email?: string
 }
+

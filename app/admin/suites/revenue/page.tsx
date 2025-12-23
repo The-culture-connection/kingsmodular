@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 
 export default function RevenueSuitePage() {
   return (
-    <div>
+    <div className="p-6 md:p-8">
       <div className="mb-6">
         <Link href="/admin/dashboard" className="text-accent hover:underline mb-2 inline-block">
           ← Back to Dashboard

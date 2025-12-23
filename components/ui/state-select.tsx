@@ -1,120 +1,102 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Search } from 'lucide-react'
+import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { ChevronDown } from 'lucide-react'
 
 const US_STATES = [
-  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
-  'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
-  'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
-  'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico',
-  'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania',
-  'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
-  'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
+  { value: 'AL', label: 'Alabama' },
+  { value: 'AK', label: 'Alaska' },
+  { value: 'AZ', label: 'Arizona' },
+  { value: 'AR', label: 'Arkansas' },
+  { value: 'CA', label: 'California' },
+  { value: 'CO', label: 'Colorado' },
+  { value: 'CT', label: 'Connecticut' },
+  { value: 'DE', label: 'Delaware' },
+  { value: 'FL', label: 'Florida' },
+  { value: 'GA', label: 'Georgia' },
+  { value: 'HI', label: 'Hawaii' },
+  { value: 'ID', label: 'Idaho' },
+  { value: 'IL', label: 'Illinois' },
+  { value: 'IN', label: 'Indiana' },
+  { value: 'IA', label: 'Iowa' },
+  { value: 'KS', label: 'Kansas' },
+  { value: 'KY', label: 'Kentucky' },
+  { value: 'LA', label: 'Louisiana' },
+  { value: 'ME', label: 'Maine' },
+  { value: 'MD', label: 'Maryland' },
+  { value: 'MA', label: 'Massachusetts' },
+  { value: 'MI', label: 'Michigan' },
+  { value: 'MN', label: 'Minnesota' },
+  { value: 'MS', label: 'Mississippi' },
+  { value: 'MO', label: 'Missouri' },
+  { value: 'MT', label: 'Montana' },
+  { value: 'NE', label: 'Nebraska' },
+  { value: 'NV', label: 'Nevada' },
+  { value: 'NH', label: 'New Hampshire' },
+  { value: 'NJ', label: 'New Jersey' },
+  { value: 'NM', label: 'New Mexico' },
+  { value: 'NY', label: 'New York' },
+  { value: 'NC', label: 'North Carolina' },
+  { value: 'ND', label: 'North Dakota' },
+  { value: 'OH', label: 'Ohio' },
+  { value: 'OK', label: 'Oklahoma' },
+  { value: 'OR', label: 'Oregon' },
+  { value: 'PA', label: 'Pennsylvania' },
+  { value: 'RI', label: 'Rhode Island' },
+  { value: 'SC', label: 'South Carolina' },
+  { value: 'SD', label: 'South Dakota' },
+  { value: 'TN', label: 'Tennessee' },
+  { value: 'TX', label: 'Texas' },
+  { value: 'UT', label: 'Utah' },
+  { value: 'VT', label: 'Vermont' },
+  { value: 'VA', label: 'Virginia' },
+  { value: 'WA', label: 'Washington' },
+  { value: 'WV', label: 'West Virginia' },
+  { value: 'WI', label: 'Wisconsin' },
+  { value: 'WY', label: 'Wyoming' },
 ]
 
-interface StateSelectProps {
-  value: string
-  onChange: (value: string) => void
+export interface StateSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
+  value?: string
+  onChange?: (value: string) => void
   label?: string
-  required?: boolean
-  error?: string
 }
 
-export function StateSelect({ value, onChange, label, required = false, error }: StateSelectProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const filteredStates = US_STATES.filter(state =>
-    state.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-        setSearchQuery('')
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen])
-
-  const handleSelect = (state: string) => {
-    onChange(state)
-    setIsOpen(false)
-    setSearchQuery('')
-  }
-
-  return (
-    <div className="w-full" ref={containerRef}>
-      {label && (
-        <label className="block text-sm font-medium text-foreground mb-1.5">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-      )}
+const StateSelect = React.forwardRef<HTMLSelectElement, StateSelectProps>(
+  ({ className, value, onChange, label, ...props }, ref) => {
+    return (
       <div className="relative">
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className={cn(
-            'flex items-center justify-between h-10 w-full rounded-lg border bg-base px-3 py-2 text-sm text-foreground',
-            'hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent',
-            error ? 'border-red-500 focus:ring-red-500' : 'border-foreground/20',
-            !value && 'text-foreground/50'
-          )}
-        >
-          <span>{value || 'Select state...'}</span>
-          <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
-        </button>
-
-        {isOpen && (
-          <div className="absolute z-50 mt-1 w-full bg-base border border-accent/20 rounded-lg shadow-lg max-h-64 overflow-hidden">
-            <div className="p-2 border-b border-accent/20">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-foreground/50" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search states..."
-                  className="w-full pl-8 pr-3 py-2 bg-base border border-accent/20 rounded text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  autoFocus
-                />
-              </div>
-            </div>
-            <div className="overflow-y-auto max-h-48">
-              {filteredStates.length > 0 ? (
-                filteredStates.map((state) => (
-                  <button
-                    key={state}
-                    type="button"
-                    onClick={() => handleSelect(state)}
-                    className={cn(
-                      'w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent/20 transition-colors',
-                      value === state && 'bg-accent/30 font-semibold'
-                    )}
-                  >
-                    {state}
-                  </button>
-                ))
-              ) : (
-                <div className="px-3 py-2 text-sm text-foreground/50">No states found</div>
-              )}
-            </div>
-          </div>
+        {label && (
+          <label className="block text-sm font-medium text-foreground mb-2">
+            {label}
+          </label>
         )}
+        <select
+          ref={ref}
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
+          className={cn(
+            'flex h-10 w-full rounded-lg border border-accent/20 bg-base px-3 py-2 text-sm text-foreground appearance-none',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            className
+          )}
+          {...props}
+        >
+          <option value="">Select State</option>
+          {US_STATES.map((state) => (
+            <option key={state.value} value={state.value}>
+              {state.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/50 pointer-events-none" />
       </div>
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-    </div>
-  )
-}
+    )
+  }
+)
+StateSelect.displayName = 'StateSelect'
+
+export { StateSelect }
+

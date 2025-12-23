@@ -6,7 +6,7 @@ import { UserRole } from '@/lib/types'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <ProtectedRoute allowedRoles={['office_admin']}>
+    <ProtectedRoute allowedRoles={['office_admin', 'admin']}>
       <AdminLayout>{children}</AdminLayout>
     </ProtectedRoute>
   )

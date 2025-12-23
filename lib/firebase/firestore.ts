@@ -145,6 +145,7 @@ export interface Job {
   name: string
   description: string
   price: number
+  timeEstimate?: number // Number of days this job will take
   createdAt?: Date | any
 }
 
@@ -180,6 +181,7 @@ export async function getJobs(): Promise<Job[]> {
         name: data.name || data.Name || doc.id, // Use document ID as fallback if no name field
         description: data.description || data.Description || '',
         price: data.price || data.Price || 0,
+        timeEstimate: data.timeEstimate || data.time_estimate || data.TimeEstimate || 0,
         createdAt: data.createdAt?.toDate() || data.CreatedAt?.toDate() || new Date(),
       })
     })
@@ -193,20 +195,40 @@ export async function getJobs(): Promise<Job[]> {
 
 export async function createPendingEstimate(estimate: Omit<PendingEstimate, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   try {
-    // Save estimate as subcollection under user's profile: users/{uid}/estimates/{estimateId}
-    const userRef = doc(db, USERS_COLLECTION, estimate.customerId)
-    const estimatesRef = collection(userRef, ESTIMATES_SUBCOLLECTION)
-    const newEstimateRef = doc(estimatesRef)
+    // Save estimate to consolidated jobs collection: /jobs/{jobId}
+    // This makes it easier for admins to query all jobs and for customers to query their own
+    const jobsRef = collection(db, 'jobs')
+    const newJobRef = doc(jobsRef)
     
-    await setDoc(newEstimateRef, {
+    await setDoc(newJobRef, {
       ...estimate,
       uid: estimate.customerId, // Explicitly save UID from customerId
+      customerId: estimate.customerId, // Ensure customerId is saved for filtering
       status: 'pending',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
     
-    return newEstimateRef.id
+    // Also save to user's subcollection for backward compatibility during transition
+    // TODO: Remove this once fully migrated to jobs collection
+    try {
+      const userRef = doc(db, USERS_COLLECTION, estimate.customerId)
+      const estimatesRef = collection(userRef, ESTIMATES_SUBCOLLECTION)
+      const userEstimateRef = doc(estimatesRef, newJobRef.id) // Use same ID for consistency
+      
+      await setDoc(userEstimateRef, {
+        ...estimate,
+        uid: estimate.customerId,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    } catch (subcollectionError) {
+      // Non-critical error - log but don't fail
+      console.warn('Failed to write to user subcollection (non-critical):', subcollectionError)
+    }
+    
+    return newJobRef.id
   } catch (error: any) {
     throw new Error(`Failed to create pending estimate: ${error.message}`)
   }
@@ -220,10 +242,9 @@ export async function getCustomerPendingEstimates(customerId: string): Promise<P
 
     console.log('Fetching estimates for customer:', customerId)
     
-    // Get estimates from user's subcollection: users/{uid}/estimates
-    const userRef = doc(db, USERS_COLLECTION, customerId)
-    const estimatesRef = collection(userRef, ESTIMATES_SUBCOLLECTION)
-    const q = query(estimatesRef)
+    // Get estimates from consolidated jobs collection filtered by customerId
+    const jobsRef = collection(db, 'jobs')
+    const q = query(jobsRef, where('customerId', '==', customerId))
     const querySnapshot = await getDocs(q)
     
     console.log('Query snapshot size:', querySnapshot.size)
@@ -254,7 +275,7 @@ export async function getCustomerPendingEstimates(customerId: string): Promise<P
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
       }
-      console.log('Loaded estimate:', estimate.id, 'Raw Status:', rawStatus, 'Normalized Status:', status, 'Full Data:', JSON.stringify(data))
+      console.log('Loaded estimate:', estimate.id, 'Raw Status:', rawStatus, 'Normalized Status:', status)
       estimates.push(estimate)
     })
     

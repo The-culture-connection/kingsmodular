@@ -67,22 +67,17 @@ export async function getCustomerPendingEstimatesAdmin(customerId: string): Prom
       throw new Error(`Failed to get Firestore instance: ${firestoreError.message}`);
     }
     
-    // Get estimates from user's subcollection: users/{uid}/estimates
-    console.log(`${logPrefix} Building Firestore query path:`, {
-      collection: USERS_COLLECTION,
-      documentId: customerId,
-      subcollection: ESTIMATES_SUBCOLLECTION,
-      fullPath: `${USERS_COLLECTION}/${customerId}/${ESTIMATES_SUBCOLLECTION}`
-    });
+    // Get estimates from consolidated jobs collection filtered by customerId
+    console.log(`${logPrefix} Querying jobs collection for customer:`, customerId);
     
-    let userRef, estimatesRef, querySnapshot;
+    let querySnapshot;
     try {
-      userRef = db.collection(USERS_COLLECTION).doc(customerId);
-      estimatesRef = userRef.collection(ESTIMATES_SUBCOLLECTION);
+      const jobsRef = db.collection('jobs');
+      const jobsQuery = jobsRef.where('customerId', '==', customerId);
       
       console.log(`${logPrefix} Executing Firestore query...`);
       const queryStartTime = Date.now();
-      querySnapshot = await estimatesRef.get();
+      querySnapshot = await jobsQuery.get();
       const queryDuration = Date.now() - queryStartTime;
       
       console.log(`${logPrefix} Query completed in ${queryDuration}ms`);

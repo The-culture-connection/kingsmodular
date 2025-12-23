@@ -1,195 +1,136 @@
 'use client'
 
-import * as React from 'react'
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { User as FirebaseUser, onAuthStateChanged, signOut as firebaseSignOut, signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from './firebase/config'
-import { getUserProfile } from './firebase/firestore'
-import { User, UserRole } from './types'
+import { getUserProfile, UserProfile } from './firebase/firestore'
+import { User, UserRole, ApprovalStatus } from './types'
 
 interface AuthContextType {
   user: User | null
   firebaseUser: FirebaseUser | null
-  isLoading: boolean
+  loading: boolean
+  isLoading: boolean // Alias for loading
   login: (email: string, password: string) => Promise<void>
-  logout: () => Promise<void>
+  signOut: () => Promise<void>
   hasRole: (roles: UserRole[]) => boolean
-  hasPermission: (permission: string) => boolean
   refreshUser: () => Promise<void>
 }
 
-const AuthContext = React.createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<User | null>(null)
-  const [firebaseUser, setFirebaseUser] = React.useState<FirebaseUser | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const loadUserProfile = React.useCallback(async (firebaseUser: FirebaseUser) => {
+  const loadUserProfile = async (firebaseUser: FirebaseUser) => {
     try {
       const profile = await getUserProfile(firebaseUser.uid)
-      console.log('[AuthContext] Loaded profile from Firestore:', profile)
-      
       if (profile) {
-        // Keep the original role from Firestore - don't normalize it
-        // We'll handle "admin" and "office_admin" as equivalent in the checks
-        const originalRole = profile.role
-        let userRole: UserRole
-        
-        // Map "admin" to "office_admin" for type safety, but preserve the check logic
-        if (originalRole === 'admin' || originalRole === 'office_admin') {
-          userRole = 'office_admin' // Use office_admin for type, but we'll check for both
-        } else {
-          userRole = originalRole as UserRole
-        }
-        
-        console.log('[AuthContext] Loaded profile:', {
-          uid: profile.uid,
-          originalRole: originalRole,
-          mappedRole: userRole,
-          email: profile.email
-        })
-        
         // Auto-approve admin users
-        let approvalStatus = profile.approvalStatus
-        if ((originalRole === 'admin' || userRole === 'office_admin') && !approvalStatus) {
-          approvalStatus = 'approved'
-          console.log('[AuthContext] Auto-approving admin user')
+        if (profile.role === 'admin' && !profile.approvalStatus) {
+          profile.approvalStatus = 'approved' as ApprovalStatus
         }
         
         const userData: User = {
           id: profile.uid,
-          email: profile.email || firebaseUser.email || '', // Use Firebase auth email as fallback
+          email: profile.email || firebaseUser.email || '',
+          role: (profile.role === 'admin' ? 'office_admin' : profile.role) as UserRole,
+          approvalStatus: profile.approvalStatus as ApprovalStatus,
           firstName: profile.firstName,
           lastName: profile.lastName,
-          role: userRole,
-          companyId: undefined, // Can be added later
+          displayName: profile.displayName,
           companyName: profile.companyName,
-          approvalStatus: approvalStatus || 'pending',
-          createdAt: profile.createdAt instanceof Date ? profile.createdAt : new Date(profile.createdAt),
+          companyType: profile.companyType,
+          createdAt: profile.createdAt?.toDate?.() || profile.createdAt,
+          updatedAt: profile.updatedAt?.toDate?.() || profile.updatedAt,
         }
         
-        // Store original role in a way we can check it
-        ;(userData as any).originalRole = originalRole
+        // Store original role for admin checks
+        ;(userData as any).originalRole = profile.role
         
-        console.log('[AuthContext] Setting user data:', { 
-          id: userData.id, 
-          role: userData.role, 
-          originalRole: originalRole,
-          email: userData.email 
-        })
         setUser(userData)
-        setFirebaseUser(firebaseUser)
       } else {
-        // Profile doesn't exist yet, set basic user info
-        setUser({
-          id: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          firstName: firebaseUser.displayName?.split(' ')[0] || '',
-          lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
-          role: 'customer' as UserRole,
-          approvalStatus: 'pending',
-          createdAt: new Date(),
-        })
-        setFirebaseUser(firebaseUser)
+        setUser(null)
       }
     } catch (error) {
       console.error('Error loading user profile:', error)
       setUser(null)
-      setFirebaseUser(null)
     }
-  }, [])
+  }
 
-  React.useEffect(() => {
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setFirebaseUser(firebaseUser)
       if (firebaseUser) {
         await loadUserProfile(firebaseUser)
       } else {
         setUser(null)
-        setFirebaseUser(null)
       }
-      setIsLoading(false)
+      setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [loadUserProfile])
+  }, [])
 
-  const login = async (email: string, password: string) => {
-    const { loginUser } = await import('./firebase/auth')
-    await loginUser(email, password)
-    // onAuthStateChanged will update the user state
-  }
-
-  const logout = async () => {
-    const { logoutUser } = await import('./firebase/auth')
-    await logoutUser()
-    setUser(null)
-    setFirebaseUser(null)
-  }
-
-  const refreshUser = async () => {
-    if (auth.currentUser) {
-      await loadUserProfile(auth.currentUser)
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth)
+      setUser(null)
+      setFirebaseUser(null)
+    } catch (error) {
+      console.error('Error signing out:', error)
+      throw error
     }
   }
 
   const hasRole = (roles: UserRole[]): boolean => {
-    if (!user) {
-      console.log('[hasRole] No user, returning false')
-      return false
-    }
+    if (!user) return false
     
-    // Get original role from Firestore if available
-    const originalRole = (user as any).originalRole || user.role
     const userRole = user.role
+    const originalRole = (user as any).originalRole || userRole
     
-    console.log('[hasRole] Checking role access:', {
-      userRole,
-      originalRole,
-      allowedRoles: roles,
-      userId: user.id
-    })
-    
-    // Check if user's role is in allowed roles
-    // Also treat 'admin' (from Firestore) as equivalent to 'office_admin'
-    const isAdmin = originalRole === 'admin' || userRole === 'admin' || userRole === 'office_admin'
-    const isOfficeAdminAllowed = roles.includes('office_admin')
-    
-    if (isAdmin && isOfficeAdminAllowed) {
-      console.log('[hasRole] User is admin and office_admin is allowed, returning true')
-      return true
+    // Check if user has admin role (either 'admin' or 'office_admin')
+    // If allowedRoles includes either 'admin' or 'office_admin', check if user is admin
+    if (roles.includes('office_admin') || roles.includes('admin')) {
+      if (userRole === 'admin' || userRole === 'office_admin' || originalRole === 'admin') {
+        return true
+      }
     }
     
-    const hasAccess = roles.includes(userRole)
-    console.log('[hasRole] Role check result:', hasAccess)
-    return hasAccess
+    // Check if user's role matches any allowed role
+    return roles.includes(userRole) || roles.includes(originalRole as UserRole)
   }
 
-  const hasPermission = (permission: string): boolean => {
-    if (!user) return false
-    // TODO: Implement permission checking logic based on role
-    return true
+  const login = async (email: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+      // The onAuthStateChanged listener will handle loading the user profile
+    } catch (error: any) {
+      console.error('Error signing in:', error)
+      throw new Error(error.message || 'Failed to sign in')
+    }
+  }
+
+  const refreshUser = async () => {
+    if (firebaseUser) {
+      await loadUserProfile(firebaseUser)
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      firebaseUser,
-      isLoading, 
-      login, 
-      logout, 
-      hasRole, 
-      hasPermission,
-      refreshUser,
-    }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, isLoading: loading, login, signOut, hasRole, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
 export function useAuth() {
-  const context = React.useContext(AuthContext)
+  const context = useContext(AuthContext)
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }
+

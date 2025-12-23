@@ -2,6 +2,7 @@ import { initializeApp, getApps, FirebaseApp } from "firebase/app"
 import { getAnalytics, Analytics } from "firebase/analytics"
 import { getAuth, Auth } from "firebase/auth"
 import { getFirestore, Firestore } from "firebase/firestore"
+import { getStorage, FirebaseStorage } from "firebase/storage"
 
 const firebaseConfig = {
   apiKey: "AIzaSyAZd4UXEh2KpVlwrVtPQFRjL8ADijpHXXk",
@@ -24,6 +25,7 @@ if (getApps().length === 0) {
 // Initialize services
 export const auth: Auth = getAuth(app)
 export const db: Firestore = getFirestore(app)
+export const storage: FirebaseStorage = getStorage(app)
 
 // Initialize Analytics only on client side
 export const analytics: Analytics | null = 
