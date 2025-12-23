@@ -146,6 +146,8 @@ export interface Job {
   description: string
   price: number
   timeEstimate?: number // Number of days this job will take
+  requiredMaterials?: string[] // Array of material IDs that are usually required for this service
+  requiredMaterialsData?: Array<{ materialId: string; quantity: number; cost: number }> // Full material data with quantity and cost
   createdAt?: Date | any
 }
 
@@ -192,6 +194,8 @@ export async function getJobs(): Promise<Job[]> {
         description: data.description || data.Description || '',
         price: data.price || data.Price || 0,
         timeEstimate: timeEstimate,
+        requiredMaterials: data.requiredMaterials || [], // Include required materials (IDs)
+        requiredMaterialsData: data.requiredMaterialsData || [], // Include required materials data (with quantity and cost)
         createdAt: data.createdAt?.toDate() || data.CreatedAt?.toDate() || new Date(),
       })
     })
@@ -207,7 +211,13 @@ export async function getJobs(): Promise<Job[]> {
  * Add a new service/job to the Jobs collection
  * Uses the description as the document ID (like "Single Wide Setup")
  */
-export async function addService(description: string, price: number, timeEstimate: string): Promise<string> {
+export async function addService(
+  description: string, 
+  price: number, 
+  timeEstimate: string,
+  requiredMaterials?: string[], // Array of material IDs (for backward compatibility)
+  requiredMaterialsData?: Array<{ materialId: string; quantity: number; cost: number }> // Full material data with quantity and cost
+): Promise<string> {
   try {
     // Use description as document ID - trim and normalize spaces
     // Firestore allows spaces in document IDs, so we keep them
@@ -216,6 +226,9 @@ export async function addService(description: string, price: number, timeEstimat
     if (!docId) {
       throw new Error('Description cannot be empty')
     }
+    
+    // Use materialsData if provided, otherwise fall back to just IDs
+    const materialsToSave = requiredMaterialsData || (requiredMaterials?.map(id => ({ materialId: id, quantity: 1, cost: 0 })) || [])
     
     // Check if document already exists - if so, update it instead of creating new
     const serviceRef = doc(db, JOBS_COLLECTION, docId)
@@ -227,9 +240,11 @@ export async function addService(description: string, price: number, timeEstimat
       'Time Estimation': timeEstimate,
       TimeEstimate: timeEstimate,
       timeEstimate: timeEstimate,
+      requiredMaterials: requiredMaterials || [], // Save material IDs for backward compatibility
+      requiredMaterialsData: materialsToSave, // Save full material data with quantity and cost
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    }, { merge: false }) // Don't merge - replace if exists
+    }, { merge: true }) // Merge to preserve existing data if updating
     
     return docId
   } catch (error: any) {
@@ -239,19 +254,111 @@ export async function addService(description: string, price: number, timeEstimat
 
 export async function createPendingEstimate(estimate: Omit<PendingEstimate, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   try {
+    // Automatically collect required materials from selected jobs
+    // Use requiredMaterialsData if available (has quantity and cost), otherwise fall back to requiredMaterials (just IDs)
+    const materialMap = new Map<string, { materialId: string; quantity: number; cost: number; name?: string }>()
+    
+    estimate.jobs.forEach((job) => {
+      // Prefer requiredMaterialsData (has quantity and cost) over requiredMaterials (just IDs)
+      if (job.requiredMaterialsData && Array.isArray(job.requiredMaterialsData) && job.requiredMaterialsData.length > 0) {
+        job.requiredMaterialsData.forEach((matData) => {
+          // If material already exists, sum quantities (in case same material is in multiple services)
+          if (materialMap.has(matData.materialId)) {
+            const existing = materialMap.get(matData.materialId)!
+            existing.quantity += matData.quantity
+          } else {
+            materialMap.set(matData.materialId, {
+              materialId: matData.materialId,
+              quantity: matData.quantity,
+              cost: matData.cost,
+            })
+          }
+        })
+      } else if (job.requiredMaterials && Array.isArray(job.requiredMaterials)) {
+        // Fall back to just IDs if requiredMaterialsData is not available
+        job.requiredMaterials.forEach((materialId) => {
+          if (!materialMap.has(materialId)) {
+            materialMap.set(materialId, {
+              materialId: materialId,
+              quantity: 1, // Default quantity if only ID is available
+              cost: 0, // Will be filled from material lookup
+            })
+          }
+        })
+      }
+    })
+
+    // Get material details if there are required materials
+    let autoMaterials: any[] = []
+    if (materialMap.size > 0) {
+      try {
+        // Import getAllMaterials dynamically to avoid circular dependency
+        const { getAllMaterials } = await import('./materials')
+        const allMaterials = await getAllMaterials()
+        
+        // Create material entries using quantities and costs from requiredMaterialsData
+        autoMaterials = Array.from(materialMap.values()).map((matData) => {
+          const material = allMaterials.find((m) => m.id === matData.materialId)
+          if (material) {
+            // Use cost from requiredMaterialsData if available, otherwise use material's base cost
+            const unitCost = matData.cost > 0 ? matData.cost : material.cost
+            const quantity = matData.quantity || 1
+            return {
+              materialId: material.id,
+              name: material.name,
+              quantity: quantity, // Use quantity from requiredMaterialsData
+              unitCost: unitCost, // Use cost from requiredMaterialsData or material's base cost
+              totalCost: unitCost * quantity,
+              ordered: false, // Default to not ordered
+              orderLink: '', // Default to no order link
+            }
+          }
+          return null
+        }).filter((m) => m !== null) as any[]
+      } catch (materialError) {
+        // Non-critical error - log but don't fail
+        console.warn('Failed to load materials for auto-add (non-critical):', materialError)
+      }
+    }
+
+    // Calculate materials cost
+    const materialsCost = autoMaterials.reduce((sum, mat) => sum + (mat.totalCost || 0), 0)
+
     // Save estimate to consolidated jobs collection: /jobs/{jobId}
     // This makes it easier for admins to query all jobs and for customers to query their own
     const jobsRef = collection(db, 'jobs')
     const newJobRef = doc(jobsRef)
     
-    await setDoc(newJobRef, {
+    // Prepare the estimate data with auto-added materials
+    const estimateData: any = {
       ...estimate,
       uid: estimate.customerId, // Explicitly save UID from customerId
       customerId: estimate.customerId, // Ensure customerId is saved for filtering
-      status: 'pending',
+      status: estimate.status || 'pending',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    })
+    }
+
+    // Add Cost object with auto-added materials if any
+    if (autoMaterials.length > 0) {
+      estimateData.Cost = {
+        materialsCost: materialsCost,
+        materials: autoMaterials,
+        payrollCost: 0,
+        payroll: [],
+        totalCost: materialsCost,
+        hoursPerDay: 10, // Default hours per day
+      }
+      // Also save at top level for backward compatibility
+      estimateData.materialsCost = materialsCost
+      estimateData.materials = autoMaterials
+      estimateData.selectedMaterials = autoMaterials.map((m) => ({
+        materialId: m.materialId,
+        quantity: m.quantity,
+      }))
+    }
+    
+    await setDoc(newJobRef, estimateData)
     
     // Also save to user's subcollection for backward compatibility during transition
     // TODO: Remove this once fully migrated to jobs collection

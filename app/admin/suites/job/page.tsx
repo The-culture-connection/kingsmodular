@@ -28,7 +28,8 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
-  ChevronRight
+  ChevronRight,
+  ArrowRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,6 +73,10 @@ export default function JobSuitePage() {
   const [selectedMaterials, setSelectedMaterials] = useState<{ materialId: string; quantity: number }[]>([])
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([])
   const [materialQuantities, setMaterialQuantities] = useState<{ [materialId: string]: number }>({})
+  const [materialOrderStatus, setMaterialOrderStatus] = useState<{ [materialId: string]: boolean }>({})
+  const [materialOrderLinks, setMaterialOrderLinks] = useState<{ [materialId: string]: string }>({})
+  const [editingOrderLink, setEditingOrderLink] = useState<string | null>(null)
+  const [tempOrderLink, setTempOrderLink] = useState('')
   const [jobPhotos, setJobPhotos] = useState<string[]>([])
   const [newMaterialName, setNewMaterialName] = useState('')
   const [newMaterialCost, setNewMaterialCost] = useState('')
@@ -86,6 +91,9 @@ export default function JobSuitePage() {
   const [quickServiceDescription, setQuickServiceDescription] = useState('')
   const [quickServicePrice, setQuickServicePrice] = useState('')
   const [quickServiceTimeEstimate, setQuickServiceTimeEstimate] = useState('')
+  const [quickServiceRequiredMaterials, setQuickServiceRequiredMaterials] = useState<string[]>([])
+  const [quickServiceMaterialQuantities, setQuickServiceMaterialQuantities] = useState<{ [materialId: string]: number }>({})
+  const [quickServiceMaterialCosts, setQuickServiceMaterialCosts] = useState<{ [materialId: string]: number }>({})
   const [hoursPerDay, setHoursPerDay] = useState(10) // Hours per day for payroll calculation
   
   // Modals
@@ -98,6 +106,7 @@ export default function JobSuitePage() {
   // Fetch jobs from Firestore
   useEffect(() => {
     loadJobs()
+    loadMaterials() // Load materials on mount so they're available for Quick Actions
   }, [])
 
   // Close date range picker when clicking outside
@@ -150,10 +159,23 @@ export default function JobSuitePage() {
       }
       setSelectedMaterials(materialsArray)
       const quantityMap: { [materialId: string]: number } = {}
-      materialsArray.forEach((mat) => {
-        quantityMap[mat.materialId] = mat.quantity
-      })
+      const orderStatusMap: { [materialId: string]: boolean } = {}
+      const orderLinksMap: { [materialId: string]: string } = {}
+      
+      // Load order status and links from existing materials
+      if (Array.isArray(materials)) {
+        materials.forEach((mat: any) => {
+          if (mat.materialId) {
+            quantityMap[mat.materialId] = mat.quantity || 1
+            orderStatusMap[mat.materialId] = mat.ordered || false
+            orderLinksMap[mat.materialId] = mat.orderLink || ''
+          }
+        })
+      }
+      
       setMaterialQuantities(quantityMap)
+      setMaterialOrderStatus(orderStatusMap)
+      setMaterialOrderLinks(orderLinksMap)
       
       // Load employees - check Cost.payroll first, then top-level payroll, then assignedEmployees
       const employeesFromCost = costData.payroll?.map((p: any) => p.employeeId) || []
@@ -419,23 +441,33 @@ export default function JobSuitePage() {
   const handleSaveMaterials = async () => {
     if (!selectedJob) return
     try {
+      // Get existing materials to preserve order status and order links
+      const existingCost = (selectedJob as any).Cost || {}
+      const existingMaterials = existingCost.materials || []
+      
       const materialsWithDetails = selectedMaterials.map(sel => {
         const material = allMaterials.find(mat => mat.id === sel.materialId)
         const unitCost = material ? material.cost : 0
         const totalCost = unitCost * sel.quantity
+        
+        // Get order status and link from state (user-controlled)
+        const ordered = materialOrderStatus[sel.materialId] || false
+        const orderLink = materialOrderLinks[sel.materialId] || ''
+        
         return {
           materialId: sel.materialId,
           name: material ? material.name : 'Unknown Material',
           quantity: sel.quantity,
           unitCost: unitCost,
-          totalCost: totalCost
+          totalCost: totalCost,
+          ordered: ordered, // User-controlled order status
+          orderLink: orderLink, // User-controlled order link
         }
       })
       const materialsCost = materialsWithDetails.reduce((sum, mat) => sum + mat.totalCost, 0)
 
       const materialsToSave: { materialId: string; quantity: number }[] = materialsWithDetails.map(m => ({ materialId: m.materialId, quantity: m.quantity }))
       
-      const existingCost = (selectedJob as any).Cost || {}
       const newCost = {
         ...existingCost,
         materialsCost,
@@ -991,7 +1023,7 @@ export default function JobSuitePage() {
 
         {/* RIGHT (30%) - Job Actions & Intelligence */}
         <div className="w-80 flex-shrink-0 space-y-4">
-          {selectedJob ? (
+          {selectedJob && showJobDrawer ? (
             <>
               {/* Financial Snapshot */}
               <div className="bg-base border border-accent/20 rounded-lg p-4">
@@ -1174,6 +1206,91 @@ export default function JobSuitePage() {
                           onChange={(e) => setQuickServiceTimeEstimate(e.target.value)}
                           placeholder="e.g., 3"
                         />
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-2 block">
+                            Required Materials (Optional)
+                          </label>
+                          <div className="space-y-2 max-h-60 overflow-y-auto border border-accent/20 rounded-lg p-3">
+                            {allMaterials.length === 0 ? (
+                              <p className="text-sm text-foreground/70">No materials available. Add materials first.</p>
+                            ) : (
+                              allMaterials.map((material) => {
+                                const isSelected = quickServiceRequiredMaterials.includes(material.id)
+                                const quantity = quickServiceMaterialQuantities[material.id] || 1
+                                const cost = quickServiceMaterialCosts[material.id] !== undefined 
+                                  ? quickServiceMaterialCosts[material.id] 
+                                  : material.cost
+                                
+                                return (
+                                  <div
+                                    key={material.id}
+                                    className={cn(
+                                      'p-2 rounded border transition-colors',
+                                      isSelected ? 'border-accent bg-accent/10' : 'border-accent/20 hover:border-accent/40'
+                                    )}
+                                  >
+                                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setQuickServiceRequiredMaterials(prev => [...prev, material.id])
+                                            setQuickServiceMaterialQuantities(prev => ({ ...prev, [material.id]: 1 }))
+                                            setQuickServiceMaterialCosts(prev => ({ ...prev, [material.id]: material.cost }))
+                                          } else {
+                                            setQuickServiceRequiredMaterials(prev => prev.filter(id => id !== material.id))
+                                            const newQuantities = { ...quickServiceMaterialQuantities }
+                                            delete newQuantities[material.id]
+                                            setQuickServiceMaterialQuantities(newQuantities)
+                                            const newCosts = { ...quickServiceMaterialCosts }
+                                            delete newCosts[material.id]
+                                            setQuickServiceMaterialCosts(newCosts)
+                                          }
+                                        }}
+                                        className="rounded border-accent/30 bg-base text-accent"
+                                      />
+                                      <span className="text-sm font-medium text-foreground flex-1">{material.name}</span>
+                                    </label>
+                                    {isSelected && (
+                                      <div className="mt-2 grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="text-xs text-foreground/70 mb-1 block">Quantity</label>
+                                          <Input
+                                            type="number"
+                                            value={quantity}
+                                            onChange={(e) => {
+                                              const val = parseFloat(e.target.value) || 1
+                                              setQuickServiceMaterialQuantities(prev => ({ ...prev, [material.id]: val }))
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="h-8 text-sm"
+                                            min="1"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-xs text-foreground/70 mb-1 block">Cost per Unit</label>
+                                          <Input
+                                            type="number"
+                                            value={cost}
+                                            onChange={(e) => {
+                                              const val = parseFloat(e.target.value) || 0
+                                              setQuickServiceMaterialCosts(prev => ({ ...prev, [material.id]: val }))
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="h-8 text-sm"
+                                            step="0.01"
+                                            min="0"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        </div>
                         <div className="flex gap-2">
                           <Button
                             variant="primary"
@@ -1189,11 +1306,29 @@ export default function JobSuitePage() {
                                   showToast('Please enter a valid price', 'error')
                                   return
                                 }
-                                await addService(quickServiceDescription.trim(), price, quickServiceTimeEstimate.trim())
+                                // Prepare materials data with quantity and cost
+                                const materialsData = quickServiceRequiredMaterials.map(materialId => ({
+                                  materialId,
+                                  quantity: quickServiceMaterialQuantities[materialId] || 1,
+                                  cost: quickServiceMaterialCosts[materialId] !== undefined 
+                                    ? quickServiceMaterialCosts[materialId] 
+                                    : allMaterials.find(m => m.id === materialId)?.cost || 0
+                                }))
+                                
+                                await addService(
+                                  quickServiceDescription.trim(), 
+                                  price, 
+                                  quickServiceTimeEstimate.trim(),
+                                  quickServiceRequiredMaterials, // Material IDs for backward compatibility
+                                  materialsData // Full material data with quantity and cost
+                                )
                                 showToast('Service added successfully', 'success')
                                 setQuickServiceDescription('')
                                 setQuickServicePrice('')
                                 setQuickServiceTimeEstimate('')
+                                setQuickServiceRequiredMaterials([])
+                                setQuickServiceMaterialQuantities({})
+                                setQuickServiceMaterialCosts({})
                                 setShowQuickAddService(false)
                               } catch (error: any) {
                                 showToast(error.message || 'Failed to add service', 'error')
@@ -1210,6 +1345,9 @@ export default function JobSuitePage() {
                               setQuickServiceDescription('')
                               setQuickServicePrice('')
                               setQuickServiceTimeEstimate('')
+                              setQuickServiceRequiredMaterials([])
+                              setQuickServiceMaterialQuantities({})
+                              setQuickServiceMaterialCosts({})
                             }}
                           >
                             Cancel
@@ -1228,7 +1366,10 @@ export default function JobSuitePage() {
       {/* Job Detail Drawer */}
       {showJobDrawer && selectedJob && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setShowJobDrawer(false)} />
+          <div className="fixed inset-0 bg-black/50" onClick={() => {
+            setShowJobDrawer(false)
+            setSelectedJob(null)
+          }} />
           <div className="relative z-50 w-full max-w-4xl bg-base border-l border-accent/20 ml-auto h-full overflow-y-auto">
             <div className="sticky top-0 bg-base border-b border-accent/20 p-6 flex items-center justify-between">
               <div>
@@ -1236,7 +1377,10 @@ export default function JobSuitePage() {
                 <p className="text-foreground/70">{selectedJob.customerName || selectedJob.customerEmail}</p>
               </div>
               <button
-                onClick={() => setShowJobDrawer(false)}
+                onClick={() => {
+                  setShowJobDrawer(false)
+                  setSelectedJob(null)
+                }}
                 className="p-2 hover:bg-foreground/10 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5 text-foreground" />
@@ -1470,36 +1614,139 @@ export default function JobSuitePage() {
                     {allMaterials.map((material) => {
                       const isSelected = selectedMaterials.some(m => m.materialId === material.id)
                       const quantity = materialQuantities[material.id] || selectedMaterials.find(m => m.materialId === material.id)?.quantity || 1
+                      const ordered = materialOrderStatus[material.id] || false
+                      const orderLink = materialOrderLinks[material.id] || ''
+                      const isEditingLink = editingOrderLink === material.id
+                      
                       return (
                         <div
                           key={material.id}
                           className={cn(
-                            'flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-colors',
+                            'p-4 border rounded-lg transition-colors',
                             isSelected ? 'border-accent bg-accent/10' : 'border-accent/20 hover:border-accent/40'
                           )}
-                          onClick={() => handleMaterialToggle(material.id)}
                         >
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleMaterialToggle(material.id)}
-                              className="rounded border-accent/30 bg-base text-accent"
-                            />
-                            <div>
-                              <div className="font-medium text-foreground">{material.name}</div>
-                              <div className="text-sm text-foreground/70">${material.cost.toLocaleString()}</div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3 flex-1">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleMaterialToggle(material.id)}
+                                className="rounded border-accent/30 bg-base text-accent cursor-pointer"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium text-foreground">{material.name}</div>
+                                <div className="text-sm text-foreground/70">${material.cost.toLocaleString()}</div>
+                              </div>
                             </div>
+                            {isSelected && (
+                              <Input
+                                type="number"
+                                value={quantity}
+                                onChange={(e) => handleQuantityChange(material.id, parseFloat(e.target.value) || 1)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-20"
+                                min="1"
+                              />
+                            )}
                           </div>
+                          
                           {isSelected && (
-                            <Input
-                              type="number"
-                              value={quantity}
-                              onChange={(e) => handleQuantityChange(material.id, parseFloat(e.target.value) || 1)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-20"
-                              min="1"
-                            />
+                            <div className="mt-3 pt-3 border-t border-accent/20 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <label className="text-sm text-foreground/70 flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={ordered}
+                                    onChange={(e) => {
+                                      setMaterialOrderStatus(prev => ({
+                                        ...prev,
+                                        [material.id]: e.target.checked
+                                      }))
+                                    }}
+                                    className="rounded border-accent/30 bg-base text-accent cursor-pointer"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <span>Ordered</span>
+                                </label>
+                                {ordered && (
+                                  <span className="text-xs text-green-400 flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Ordered
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div className="space-y-1">
+                                {isEditingLink ? (
+                                  <div className="flex gap-2">
+                                    <Input
+                                      type="url"
+                                      value={tempOrderLink}
+                                      onChange={(e) => setTempOrderLink(e.target.value)}
+                                      placeholder="https://..."
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="flex-1 text-sm"
+                                    />
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setMaterialOrderLinks(prev => ({
+                                          ...prev,
+                                          [material.id]: tempOrderLink
+                                        }))
+                                        setEditingOrderLink(null)
+                                        setTempOrderLink('')
+                                      }}
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEditingOrderLink(null)
+                                        setTempOrderLink('')
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    {orderLink ? (
+                                      <a
+                                        href={orderLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-sm text-accent hover:underline flex items-center gap-1"
+                                      >
+                                        <ArrowRight className="h-3 w-3" />
+                                        Order Link
+                                      </a>
+                                    ) : (
+                                      <span className="text-sm text-foreground/50">No order link</span>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setTempOrderLink(orderLink)
+                                        setEditingOrderLink(material.id)
+                                      }}
+                                      className="text-xs"
+                                    >
+                                      {orderLink ? 'Edit' : 'Add Link'}
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           )}
                         </div>
                       )
