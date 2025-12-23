@@ -119,7 +119,8 @@ export async function getAllEstimates(): Promise<Estimate[]> {
     jobsSnapshot.forEach((jobDoc) => {
       const data = jobDoc.data()
       
-      estimates.push({
+      // Include all data including Cost object and cost-related fields
+      const estimate: any = {
         id: jobDoc.id,
         uid: data.uid || data.customerId || '',
         customerId: data.customerId || '',
@@ -132,7 +133,29 @@ export async function getAllEstimates(): Promise<Estimate[]> {
         status: data.status || 'pending',
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt || Date.now()),
+        // Include Cost object and cost-related fields
+        Cost: data.Cost || {},
+        materialsCost: data.materialsCost,
+        payrollCost: data.payrollCost,
+        materials: data.materials,
+        payroll: data.payroll,
+        selectedMaterials: data.selectedMaterials,
+        assignedEmployees: data.assignedEmployees,
+        photos: data.photos,
+        totalDays: data.totalDays,
+        hoursPerDay: data.hoursPerDay,
+        paid: data.paid || false,
+      }
+      
+      console.log('🟠 getAllEstimates: Raw estimate data for', jobDoc.id, ':', {
+        hasCost: !!data.Cost,
+        Cost: data.Cost,
+        materialsCost: data.materialsCost,
+        payrollCost: data.payrollCost,
+        allDataKeys: Object.keys(data),
       })
+      
+      estimates.push(estimate)
     })
     
     return estimates
@@ -153,13 +176,6 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
   // Calculate financials
   // Revenue = totalPrice from estimate
   const revenue = estimate.totalPrice || 0
-  
-  // Cost calculation - for now, we'll estimate 70% of revenue as cost
-  // TODO: Replace with actual cost tracking when available
-  const cost = revenue * 0.7
-  
-  // Profit = revenue - cost
-  const profit = revenue - cost
   
   // Determine boolean flags based on status
   const approved = status === 'approved' || status === 'in_progress' || status === 'completed'
@@ -192,9 +208,18 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
   const totalDays = (estimate as any).totalDays || 0
   const photos = (estimate as any).photos || []
   
-  // Recalculate cost and profit with actual materials and payroll
+  // Calculate cost and profit with actual materials and payroll (always use actual, even if 0)
   const actualCost = materialsCost + payrollCost
   const actualProfit = revenue - actualCost
+
+  console.log('TransformEstimateToJob - Cost Calculation:', {
+    jobId: estimate.id,
+    revenue,
+    materialsCost,
+    payrollCost,
+    actualCost,
+    actualProfit
+  })
 
   return {
     id: estimate.id,
@@ -202,8 +227,8 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
     site: site,
     status: status,
     revenue: revenue,
-    cost: actualCost > 0 ? actualCost : cost, // Use actual cost if available, otherwise use estimate
-    profit: actualProfit !== revenue - cost ? actualProfit : profit, // Use actual profit if calculated
+    cost: actualCost, // Always use actual cost (materials + payroll), even if 0
+    profit: actualProfit, // Always use actual profit calculation
     startDate: estimate.dateRange.start || '',
     endDate: estimate.dateRange.end || '',
     customerName: estimate.customerCompanyName || undefined,
@@ -241,10 +266,30 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
  */
 export async function getAllJobs(): Promise<TransformedJob[]> {
   try {
+    console.log('🟢 getAllJobs: Fetching estimates...')
     const estimates = await getAllEstimates()
-    return estimates.map(transformEstimateToJob)
+    console.log('🟢 getAllJobs: Got', estimates.length, 'estimates')
+    
+    const transformedJobs = estimates.map(transformEstimateToJob)
+    console.log('🟢 getAllJobs: Transformed', transformedJobs.length, 'jobs')
+    
+    // Debug: Log first job's cost data
+    if (transformedJobs.length > 0) {
+      const firstJob = transformedJobs[0]
+      console.log('🟢 getAllJobs: First job cost data:', {
+        id: firstJob.id,
+        revenue: firstJob.revenue,
+        cost: firstJob.cost,
+        profit: firstJob.profit,
+        Cost: (firstJob as any).Cost,
+        materialsCost: (firstJob as any).materialsCost,
+        payrollCost: (firstJob as any).payrollCost,
+      })
+    }
+    
+    return transformedJobs
   } catch (error: any) {
-    console.error('Error fetching jobs:', error)
+    console.error('❌ Error fetching jobs:', error)
     throw new Error(`Failed to fetch jobs: ${error.message}`)
   }
 }
@@ -326,10 +371,19 @@ export async function updateJobData(jobId: string, updates: {
   selectedMaterials?: string[] | { materialId: string; quantity: number }[]
   photos?: string[]
   totalDays?: number
+  hoursPerDay?: number
   payrollCost?: number
   materialsCost?: number
   materials?: { materialId: string; name: string; quantity: number; unitCost: number; totalCost: number }[]
   payroll?: { employeeId: string; employeeName: string; hourlyRate: number; hours: number; totalCost: number }[]
+  Cost?: {
+    hoursPerDay?: number
+    materialsCost: number
+    materials: { materialId: string; name: string; quantity: number; unitCost: number; totalCost: number }[]
+    payrollCost: number
+    payroll: { employeeId: string; employeeName: string; hourlyRate: number; hours: number; totalCost: number }[]
+    totalCost: number
+  }
 }): Promise<void> {
   try {
     const jobRef = doc(db, 'jobs', jobId)
@@ -339,36 +393,51 @@ export async function updateJobData(jobId: string, updates: {
     const existingData = jobDoc.exists() ? jobDoc.data() : {}
     const existingCost = existingData.Cost || {}
     
-    // Build Cost object structure - merge with existing
-    const costUpdate: any = {
-      ...existingCost, // Preserve existing cost data
+    // If Cost object is provided directly, use it; otherwise build from individual fields
+    let costUpdate: any
+    if (updates.Cost) {
+      // Use the provided Cost object directly
+      costUpdate = updates.Cost
+    } else {
+      // Build Cost object structure - merge with existing
+      costUpdate = {
+        ...existingCost, // Preserve existing cost data
+      }
+      
+      // Update materials if provided
+      if (updates.materialsCost !== undefined || updates.materials !== undefined) {
+        costUpdate.materialsCost = updates.materialsCost ?? existingCost.materialsCost ?? 0
+        costUpdate.materials = updates.materials ?? existingCost.materials ?? []
+      }
+      
+      // Update payroll if provided
+      if (updates.payrollCost !== undefined || updates.payroll !== undefined) {
+        costUpdate.payrollCost = updates.payrollCost ?? existingCost.payrollCost ?? 0
+        costUpdate.payroll = updates.payroll ?? existingCost.payroll ?? []
+      }
+      
+      // Calculate total cost
+      costUpdate.totalCost = (costUpdate.materialsCost || 0) + (costUpdate.payrollCost || 0)
     }
     
-    // Update materials if provided
-    if (updates.materialsCost !== undefined || updates.materials !== undefined) {
-      costUpdate.materialsCost = updates.materialsCost ?? existingCost.materialsCost ?? 0
-      costUpdate.materials = updates.materials ?? existingCost.materials ?? []
-    }
-    
-    // Update payroll if provided
-    if (updates.payrollCost !== undefined || updates.payroll !== undefined) {
-      costUpdate.payrollCost = updates.payrollCost ?? existingCost.payrollCost ?? 0
-      costUpdate.payroll = updates.payroll ?? existingCost.payroll ?? []
-    }
-    
-    // Calculate total cost
-    costUpdate.totalCost = (costUpdate.materialsCost || 0) + (costUpdate.payrollCost || 0)
-    
-    // Prepare update data - exclude materials and payroll from top level
-    const { materials, payroll, ...otherUpdates } = updates
+    // Prepare update data - save materials and payroll arrays at top level AND in Cost object
+    const { materials, payroll, Cost, hoursPerDay, ...otherUpdates } = updates
     const updateData: any = {
       ...otherUpdates,
-      Cost: costUpdate, // Always include Cost object
+      // Save arrays at top level for easy access
+      materials: costUpdate.materials || [],
+      payroll: costUpdate.payroll || [],
+      materialsCost: costUpdate.materialsCost || 0,
+      payrollCost: costUpdate.payrollCost || 0,
+      // Save hours per day if provided
+      ...(hoursPerDay !== undefined && { hoursPerDay }),
+      // Save Cost object
+      Cost: costUpdate,
       updatedAt: serverTimestamp(),
     }
     
     await updateDoc(jobRef, updateData)
-    console.log('Updated job data:', { jobId, costUpdate })
+    console.log('Updated job data:', { jobId, costUpdate, updateData })
   } catch (error: any) {
     console.error('Error updating job data:', error)
     throw new Error(`Failed to update job data: ${error.message}`)

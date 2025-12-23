@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, CheckCircle2, DollarSign } from 'lucide-react'
+import { MapPin, CheckCircle2, DollarSign, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StateSelect } from '@/components/ui/state-select'
-import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/lib/toast-context'
 import { getJobs, createPendingEstimate, Job } from '@/lib/firebase/firestore'
@@ -18,14 +18,17 @@ export default function QuotePage() {
   const { showToast } = useToast()
   const [jobs, setJobs] = useState<Job[]>([])
   const [selectedJobs, setSelectedJobs] = useState<string[]>([])
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [selectedDate, setSelectedDate] = useState('')
   const [streetAddress, setStreetAddress] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
   const [zipCode, setZipCode] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Default values for payroll calculation (not editable by customer)
+  const hoursPerDay = 10
+  const hourlyRate = 25 // Default hourly rate
 
   useEffect(() => {
     loadJobs()
@@ -61,6 +64,11 @@ export default function QuotePage() {
     return sum + (job?.price || 0)
   }, 0)
 
+  const totalTimeEstimate = selectedJobs.reduce((sum, jobId) => {
+    const job = jobs.find((j) => j.id === jobId)
+    return sum + (job?.timeEstimate || 0)
+  }, 0)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -75,8 +83,8 @@ export default function QuotePage() {
       return
     }
 
-    if (!startDate || !endDate) {
-      showToast('Please select a date range', 'error')
+    if (!selectedDate) {
+      showToast('Please select a date', 'error')
       return
     }
 
@@ -91,6 +99,11 @@ export default function QuotePage() {
 
       const fullLocation = `${streetAddress.trim()}, ${city.trim()}, ${state} ${zipCode.trim()}`
 
+      // Calculate end date based on selected date + total time estimate
+      const startDateObj = new Date(selectedDate)
+      const endDateObj = new Date(startDateObj)
+      endDateObj.setDate(endDateObj.getDate() + totalTimeEstimate)
+
       await createPendingEstimate({
         uid: user.id,
         customerId: user.id,
@@ -99,8 +112,8 @@ export default function QuotePage() {
         jobs: selectedJobsData,
         totalPrice,
         dateRange: {
-          start: startDate,
-          end: endDate,
+          start: selectedDate,
+          end: endDateObj.toISOString().split('T')[0],
         },
         location: fullLocation,
         status: 'pending',
@@ -125,14 +138,25 @@ export default function QuotePage() {
 
   return (
     <div className="relative">
-      {/* Total Price Display - Upper Right */}
+      {/* Total Price and Time Estimation Display - Upper Right (Horizontal) */}
       <div className="absolute top-0 right-0 bg-accent/20 border border-accent rounded-lg p-4 mb-4">
-        <div className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-accent" />
-          <div>
-            <p className="text-sm text-foreground/70">Total</p>
-            <p className="text-2xl font-bold text-accent">${totalPrice.toLocaleString()}</p>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-accent" />
+            <div>
+              <p className="text-sm text-foreground/70">Total Price</p>
+              <p className="text-2xl font-bold text-accent">${totalPrice.toLocaleString()}</p>
+            </div>
           </div>
+          {totalTimeEstimate > 0 && (
+            <div className="flex items-center gap-2 border-l border-accent/30 pl-6">
+              <Clock className="h-5 w-5 text-accent" />
+              <div>
+                <p className="text-sm text-foreground/70">Time Estimate</p>
+                <p className="text-xl font-bold text-accent">{totalTimeEstimate} {totalTimeEstimate === 1 ? 'day' : 'days'}</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -142,13 +166,12 @@ export default function QuotePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Date Range and Location */}
+        {/* Date and Location */}
         <div className="bg-base border border-accent/20 rounded-lg p-6 space-y-4">
-          <DateRangePicker
-            startDate={startDate}
-            endDate={endDate}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
+          <DatePicker
+            date={selectedDate}
+            onDateChange={setSelectedDate}
+            label="Project Start Date"
             required
           />
           <div className="space-y-4">
@@ -223,11 +246,17 @@ export default function QuotePage() {
                     )}
                   </div>
                   <p className="text-sm text-foreground/70 mb-3">{job.description}</p>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <span className="text-lg font-bold text-accent">
                       ${job.price.toLocaleString()}
                     </span>
                   </div>
+                  {job.timeEstimate && job.timeEstimate > 0 && (
+                    <div className="flex items-center gap-1 text-sm text-foreground/70">
+                      <Clock className="h-4 w-4" />
+                      <span>{job.timeEstimate} {job.timeEstimate === 1 ? 'day' : 'days'}</span>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -246,7 +275,7 @@ export default function QuotePage() {
             variant="primary"
             size="lg"
             isLoading={isSubmitting}
-            disabled={selectedJobs.length === 0 || !startDate || !endDate || !streetAddress.trim() || !city.trim() || !state || !zipCode.trim()}
+            disabled={selectedJobs.length === 0 || !selectedDate || !streetAddress.trim() || !city.trim() || !state || !zipCode.trim()}
             className="bg-accent hover:bg-accent/90"
           >
             Submit Quote

@@ -19,8 +19,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             // Variants
             'bg-accent text-base hover:bg-accent/90': variant === 'primary',
             'bg-foreground/10 text-foreground hover:bg-foreground/20': variant === 'secondary',
-            'border-2 border-accent text-accent hover:bg-accent/10': variant === 'outline',
-            'text-foreground hover:bg-foreground/10': variant === 'ghost',
+            'border-2 border-accent !text-accent hover:bg-accent/10': variant === 'outline',
+            '!text-accent hover:bg-foreground/10': variant === 'ghost',
             // Sizes
             'h-8 px-3 text-sm': size === 'sm',
             'h-10 px-4 text-base': size === 'md',

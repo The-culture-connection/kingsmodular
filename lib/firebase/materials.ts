@@ -1,5 +1,5 @@
 // Materials Firestore functions
-import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore'
+import { collection, getDocs, addDoc, doc, getDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from 'firebase/firestore'
 import { db } from './config'
 
 export interface Material {
@@ -24,8 +24,8 @@ export async function getAllMaterials(): Promise<Material[]> {
       const data = doc.data()
       materials.push({
         id: doc.id,
-        name: data.name || '',
-        cost: data.cost || 0,
+        name: data.name || data.Name || '',
+        cost: data.cost || data.Cost || 0,
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt || Date.now()),
       })
@@ -45,10 +45,13 @@ export async function addMaterial(name: string, cost: number): Promise<string> {
   try {
     const materialsRef = collection(db, 'Materials')
     const docRef = await addDoc(materialsRef, {
+      // Save both naming conventions for compatibility
       name,
+      Name: name,
       cost,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      Cost: cost,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     })
     return docRef.id
   } catch (error: any) {

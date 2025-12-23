@@ -39,8 +39,11 @@ import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/lib/toast-context'
 import { getAllJobs, TransformedJob, getEstimateById, updateJobStatus, deleteJob, duplicateJob, updateJobData } from '@/lib/firebase/jobs'
 import { getAllMaterials, addMaterial, Material } from '@/lib/firebase/materials'
+import { addService } from '@/lib/firebase/firestore'
 import { getAllEmployees, Employee } from '@/lib/firebase/employees'
 import { uploadJobPhoto, getJobPhotos } from '@/lib/firebase/photos'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase/config'
 import { cn } from '@/lib/utils'
 
 export default function JobSuitePage() {
@@ -54,9 +57,9 @@ export default function JobSuitePage() {
   
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [dateFilter, setDateFilter] = useState<string>('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [dateRangeStart, setDateRangeStart] = useState<string>('')
+  const [dateRangeEnd, setDateRangeEnd] = useState<string>('')
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false)
   
   // Job Detail Drawer
   const [selectedJob, setSelectedJob] = useState<TransformedJob | null>(null)
@@ -75,6 +78,16 @@ export default function JobSuitePage() {
   const [showAddMaterial, setShowAddMaterial] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   
+  // Quick Actions state
+  const [showQuickAddMaterial, setShowQuickAddMaterial] = useState(false)
+  const [quickMaterialName, setQuickMaterialName] = useState('')
+  const [quickMaterialCost, setQuickMaterialCost] = useState('')
+  const [showQuickAddService, setShowQuickAddService] = useState(false)
+  const [quickServiceDescription, setQuickServiceDescription] = useState('')
+  const [quickServicePrice, setQuickServicePrice] = useState('')
+  const [quickServiceTimeEstimate, setQuickServiceTimeEstimate] = useState('')
+  const [hoursPerDay, setHoursPerDay] = useState(10) // Hours per day for payroll calculation
+  
   // Modals
   const [showEditStatusModal, setShowEditStatusModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -87,6 +100,24 @@ export default function JobSuitePage() {
     loadJobs()
   }, [])
 
+  // Close date range picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (showDateRangePicker && !target.closest('.date-range-picker-container')) {
+        setShowDateRangePicker(false)
+      }
+    }
+
+    if (showDateRangePicker) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showDateRangePicker])
+
   // Load materials and employees when drawer opens
   useEffect(() => {
     if (selectedJob && showJobDrawer) {
@@ -94,10 +125,18 @@ export default function JobSuitePage() {
       loadEmployees()
       loadPhotos()
       // Load selected materials and employees from job
+      // Check Cost object first, then top-level fields
       const costData = (selectedJob as any).Cost || {}
       const materialsFromCost = costData.materials || []
+      const materialsFromTopLevel = (selectedJob as any).materials || []
       const materialsFromDirect = selectedJob.selectedMaterials || []
-      const materials = materialsFromCost.length > 0 ? materialsFromCost : materialsFromDirect
+      
+      // Prefer Cost.materials, then top-level materials, then selectedMaterials
+      const materials = materialsFromCost.length > 0 
+        ? materialsFromCost 
+        : materialsFromTopLevel.length > 0 
+        ? materialsFromTopLevel 
+        : materialsFromDirect
       
       const materialsArray: { materialId: string; quantity: number }[] = []
       if (Array.isArray(materials)) {
@@ -116,9 +155,21 @@ export default function JobSuitePage() {
       })
       setMaterialQuantities(quantityMap)
       
+      // Load employees - check Cost.payroll first, then top-level payroll, then assignedEmployees
       const employeesFromCost = costData.payroll?.map((p: any) => p.employeeId) || []
+      const employeesFromTopLevel = (selectedJob as any).payroll?.map((p: any) => p.employeeId) || []
       const employeesFromDirect = selectedJob.assignedEmployees || []
-      setSelectedEmployees(employeesFromCost.length > 0 ? employeesFromCost : employeesFromDirect)
+      setSelectedEmployees(
+        employeesFromCost.length > 0 
+          ? employeesFromCost 
+          : employeesFromTopLevel.length > 0 
+          ? employeesFromTopLevel 
+          : employeesFromDirect
+      )
+      
+      // Load hours per day from job data (default to 10)
+      const jobHoursPerDay = (selectedJob as any).hoursPerDay || costData.hoursPerDay || 10
+      setHoursPerDay(jobHoursPerDay)
     }
   }, [selectedJob, showJobDrawer])
 
@@ -128,48 +179,79 @@ export default function JobSuitePage() {
     
     // Status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(job => job.status === statusFilter)
+      if (statusFilter === 'paid') {
+        // Filter for paid jobs (regardless of status)
+        filtered = filtered.filter(job => job.paid)
+      } else {
+        filtered = filtered.filter(job => job.status === statusFilter)
+      }
     }
     
-    // Date filter
-    if (dateFilter) {
+    // Date range filter
+    if (dateRangeStart || dateRangeEnd) {
       filtered = filtered.filter(job => {
         const jobDate = new Date(job.startDate)
-        const filterDate = new Date(dateFilter)
-        return jobDate.toDateString() === filterDate.toDateString()
+        if (dateRangeStart && dateRangeEnd) {
+          const startDate = new Date(dateRangeStart)
+          const endDate = new Date(dateRangeEnd)
+          // Set time to start/end of day for proper comparison
+          startDate.setHours(0, 0, 0, 0)
+          endDate.setHours(23, 59, 59, 999)
+          return jobDate >= startDate && jobDate <= endDate
+        } else if (dateRangeStart) {
+          const startDate = new Date(dateRangeStart)
+          startDate.setHours(0, 0, 0, 0)
+          return jobDate >= startDate
+        } else if (dateRangeEnd) {
+          const endDate = new Date(dateRangeEnd)
+          endDate.setHours(23, 59, 59, 999)
+          return jobDate <= endDate
+        }
+        return true
       })
     }
     
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(job => 
-        job.name?.toLowerCase().includes(query) ||
-        job.location?.toLowerCase().includes(query) ||
-        job.customerName?.toLowerCase().includes(query) ||
-        job.site?.toLowerCase().includes(query)
-      )
-    }
-    
     setFilteredJobs(filtered)
-  }, [jobs, statusFilter, dateFilter, searchQuery])
+  }, [jobs, statusFilter, dateRangeStart, dateRangeEnd])
 
   const loadJobs = async () => {
     try {
       setIsLoading(true)
       setError(null)
+      console.log('🔵 loadJobs: Starting to fetch jobs...')
       const fetchedJobs = await getAllJobs()
+      console.log('🔵 loadJobs: Fetched jobs:', fetchedJobs.length)
+      
+      // Debug: Log cost data for each job
+      fetchedJobs.forEach((job, index) => {
+        const costData = (job as any).Cost || {}
+        console.log(`🔵 Job ${index + 1} (${job.id}):`, {
+          name: job.name,
+          revenue: job.revenue,
+          cost: job.cost,
+          profit: job.profit,
+          materialsCost: costData.materialsCost ?? (job as any).materialsCost,
+          payrollCost: costData.payrollCost ?? (job as any).payrollCost,
+          Cost: costData,
+          hasCostObject: !!(job as any).Cost,
+          topLevelMaterialsCost: (job as any).materialsCost,
+          topLevelPayrollCost: (job as any).payrollCost,
+        })
+      })
+      
       setJobs(fetchedJobs)
+      console.log('🔵 loadJobs: Jobs set in state')
       
       // If a job drawer is open, update the selected job with fresh data
       if (selectedJob && showJobDrawer) {
         const updatedJob = fetchedJobs.find(j => j.id === selectedJob.id)
         if (updatedJob) {
+          console.log('🔵 loadJobs: Updating selected job:', updatedJob.id)
           setSelectedJob(updatedJob)
         }
       }
     } catch (error: any) {
-      console.error('Error loading jobs:', error)
+      console.error('❌ Error loading jobs:', error)
       setError(error.message || 'Failed to load jobs')
       showToast('Failed to load jobs', 'error')
     } finally {
@@ -208,9 +290,9 @@ export default function JobSuitePage() {
   // Calculate priority counts
   const priorityCounts = {
     awaitingApproval: jobs.filter(j => j.status === 'pending_approval').length,
-    outstandingBalance: jobs.filter(j => (j.status === 'approved' || j.status === 'in_progress' || j.status === 'outstanding') && !j.paid).length,
-    readyToClose: jobs.filter(j => j.status === 'in_progress' && j.photosUploaded && j.materialsFinalized && !j.payrollPending).length,
-    missingPhotos: jobs.filter(j => j.status === 'in_progress' && !j.photosUploaded).length,
+    inProgress: jobs.filter(j => j.status === 'approved').length,
+    outstandingBalance: jobs.filter(j => j.status === 'completed' && !j.paid).length,
+    paid: jobs.filter(j => j.paid).length,
   }
 
   const handlePriorityClick = (filterType: string) => {
@@ -218,20 +300,41 @@ export default function JobSuitePage() {
       case 'awaitingApproval':
         setStatusFilter('pending_approval')
         break
-      case 'outstandingBalance':
+      case 'inProgress':
         setStatusFilter('approved')
         break
-      case 'readyToClose':
-        setStatusFilter('in_progress')
+      case 'outstandingBalance':
+        setStatusFilter('completed')
         break
-      case 'missingPhotos':
-        setStatusFilter('in_progress')
+      case 'paid':
+        setStatusFilter('paid')
         break
     }
   }
 
-  const handleJobClick = (job: TransformedJob) => {
-    setSelectedJob(job)
+  const handleJobClick = async (job: TransformedJob) => {
+    // Reload the job from Firestore to get the latest data including Cost object
+    try {
+      const jobRef = doc(db, 'jobs', job.id)
+      const jobDoc = await getDoc(jobRef)
+      if (jobDoc.exists()) {
+        const jobData = jobDoc.data()
+        // Merge the fresh Firestore data with the transformed job
+        const freshJob = {
+          ...job,
+          ...jobData,
+          Cost: jobData.Cost || job.Cost,
+          materials: jobData.materials || job.materials || [],
+          payroll: jobData.payroll || job.payroll || [],
+        }
+        setSelectedJob(freshJob as TransformedJob)
+      } else {
+        setSelectedJob(job)
+      }
+    } catch (error) {
+      console.error('Error loading fresh job data:', error)
+      setSelectedJob(job)
+    }
     setShowJobDrawer(true)
     setActiveTab('overview')
   }
@@ -347,15 +450,47 @@ export default function JobSuitePage() {
         Cost: newCost,
       })
       showToast('Materials saved successfully', 'success')
-      const updatedJob = { 
-        ...selectedJob, 
-        materialsCost, 
-        selectedMaterials: materialsToSave,
-        materials: materialsWithDetails,
-        Cost: newCost
-      }
-      setSelectedJob(updatedJob)
+      
+      // Reload jobs to get fresh data from Firestore
       await loadJobs()
+      
+      // Reload the selected job from Firestore to get the latest data
+      try {
+        const jobRef = doc(db, 'jobs', selectedJob.id)
+        const jobDoc = await getDoc(jobRef)
+        if (jobDoc.exists()) {
+          const jobData = jobDoc.data()
+          const updatedJob = {
+            ...selectedJob,
+            ...jobData,
+            Cost: jobData.Cost || newCost,
+            materials: jobData.materials || materialsWithDetails,
+            materialsCost: jobData.materialsCost || materialsCost,
+          }
+          setSelectedJob(updatedJob as TransformedJob)
+        } else {
+          // Fallback to local update if Firestore fetch fails
+          const updatedJob = { 
+            ...selectedJob, 
+            materialsCost, 
+            selectedMaterials: materialsToSave,
+            materials: materialsWithDetails,
+            Cost: newCost
+          }
+          setSelectedJob(updatedJob)
+        }
+      } catch (error) {
+        console.error('Error reloading job after save:', error)
+        // Fallback to local update
+        const updatedJob = { 
+          ...selectedJob, 
+          materialsCost, 
+          selectedMaterials: materialsToSave,
+          materials: materialsWithDetails,
+          Cost: newCost
+        }
+        setSelectedJob(updatedJob)
+      }
     } catch (error: any) {
       showToast(error.message || 'Failed to save materials', 'error')
     }
@@ -387,18 +522,18 @@ export default function JobSuitePage() {
     if (!selectedJob) return
     try {
       const totalDays = selectedJob.jobs?.reduce((sum, job) => sum + (job.timeEstimate || 0), 0) || 0
-      const hoursPerDay = 8
+      const hours = totalDays * hoursPerDay
 
       const payrollWithDetails = selectedEmployees.map(empId => {
         const employee = allEmployees.find(emp => emp.uid === empId)
         const hourlyRate = employee?.hourlyRate || 0
-        const hours = totalDays * hoursPerDay
+        const employeeHours = totalDays * hoursPerDay
         return {
           employeeId: empId,
           employeeName: employee?.name || 'Unknown Employee',
           hourlyRate,
-          hours,
-          totalCost: hourlyRate * hours
+          hours: employeeHours,
+          totalCost: hourlyRate * employeeHours
         }
       })
       const payrollCost = payrollWithDetails.reduce((sum, emp) => sum + emp.totalCost, 0)
@@ -406,6 +541,7 @@ export default function JobSuitePage() {
       const existingCost = (selectedJob as any).Cost || {}
       const newCost = {
         ...existingCost,
+        hoursPerDay, // Save hours per day in Cost object
         payrollCost,
         payroll: payrollWithDetails,
         totalCost: (existingCost.materialsCost || 0) + payrollCost
@@ -414,21 +550,56 @@ export default function JobSuitePage() {
       await updateJobData(selectedJob.id, {
         assignedEmployees: selectedEmployees,
         totalDays,
+        hoursPerDay, // Save hours per day at top level too
         payrollCost,
         payroll: payrollWithDetails,
         Cost: newCost,
       })
       showToast('Employees and payroll saved successfully', 'success')
-      const updatedJob = { 
-        ...selectedJob, 
-        assignedEmployees: selectedEmployees, 
-        totalDays, 
-        payrollCost,
-        payroll: payrollWithDetails as any,
-        Cost: newCost
-      }
-      setSelectedJob(updatedJob)
+      
+      // Reload jobs to get fresh data from Firestore
       await loadJobs()
+      
+      // Reload the selected job from Firestore to get the latest data
+      try {
+        const jobRef = doc(db, 'jobs', selectedJob.id)
+        const jobDoc = await getDoc(jobRef)
+        if (jobDoc.exists()) {
+          const jobData = jobDoc.data()
+          const updatedJob = {
+            ...selectedJob,
+            ...jobData,
+            Cost: jobData.Cost || newCost,
+            payroll: jobData.payroll || payrollWithDetails,
+            payrollCost: jobData.payrollCost || payrollCost,
+            assignedEmployees: jobData.assignedEmployees || selectedEmployees,
+          }
+          setSelectedJob(updatedJob as TransformedJob)
+        } else {
+          // Fallback to local update if Firestore fetch fails
+          const updatedJob = { 
+            ...selectedJob, 
+            assignedEmployees: selectedEmployees, 
+            totalDays, 
+            payrollCost,
+            payroll: payrollWithDetails as any,
+            Cost: newCost
+          }
+          setSelectedJob(updatedJob)
+        }
+      } catch (error) {
+        console.error('Error reloading job after save:', error)
+        // Fallback to local update
+        const updatedJob = { 
+          ...selectedJob, 
+          assignedEmployees: selectedEmployees, 
+          totalDays, 
+          payrollCost,
+          payroll: payrollWithDetails as any,
+          Cost: newCost
+        }
+        setSelectedJob(updatedJob)
+      }
     } catch (error: any) {
       showToast(error.message || 'Failed to save employees', 'error')
     }
@@ -571,36 +742,69 @@ export default function JobSuitePage() {
               onChange={setStatusFilter}
             />
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-foreground mb-2">Date</label>
+          <div className="flex-1 min-w-[200px] relative date-range-picker-container">
+            <label className="block text-sm font-medium text-foreground mb-2">Date Range</label>
             <Button
               variant="outline"
-              onClick={() => setShowDatePicker(!showDatePicker)}
+              onClick={() => setShowDateRangePicker(!showDateRangePicker)}
               className="w-full justify-between"
             >
-              {dateFilter ? new Date(dateFilter).toLocaleDateString() : 'Select Date'}
+              {dateRangeStart && dateRangeEnd 
+                ? `${new Date(dateRangeStart).toLocaleDateString()} - ${new Date(dateRangeEnd).toLocaleDateString()}`
+                : dateRangeStart
+                ? `From ${new Date(dateRangeStart).toLocaleDateString()}`
+                : dateRangeEnd
+                ? `Until ${new Date(dateRangeEnd).toLocaleDateString()}`
+                : 'Select Date Range'}
               <Calendar className="h-4 w-4" />
             </Button>
-            {showDatePicker && (
-              <div className="absolute z-50 mt-2">
-                <DatePicker
-                  date={dateFilter}
-                  onDateChange={(date) => {
-                    setDateFilter(date)
-                    setShowDatePicker(false)
-                  }}
-                />
+            {showDateRangePicker && (
+              <div className="absolute z-50 mt-2 bg-base border border-accent/20 rounded-lg shadow-lg p-4 min-w-[600px] date-range-picker-container">
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <DatePicker
+                      date={dateRangeStart}
+                      onDateChange={(date) => {
+                        setDateRangeStart(date)
+                        if (date && dateRangeEnd && new Date(date) > new Date(dateRangeEnd)) {
+                          setDateRangeEnd('')
+                        }
+                      }}
+                      label="Start Date"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <DatePicker
+                      date={dateRangeEnd}
+                      onDateChange={(date) => {
+                        setDateRangeEnd(date)
+                        if (date && dateRangeStart && new Date(date) < new Date(dateRangeStart)) {
+                          setDateRangeStart('')
+                        }
+                      }}
+                      label="End Date"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setDateRangeStart('')
+                      setDateRangeEnd('')
+                    }}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDateRangePicker(false)}
+                  >
+                    Apply
+                  </Button>
+                </div>
               </div>
             )}
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-foreground mb-2">Search</label>
-            <Input
-              placeholder="Search jobs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full"
-            />
           </div>
         </div>
       </div>
@@ -619,6 +823,17 @@ export default function JobSuitePage() {
         </button>
         
         <button
+          onClick={() => handlePriorityClick('inProgress')}
+          className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 hover:bg-blue-500/30 transition-colors text-left"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-blue-400">In Progress</span>
+            <Clock className="h-5 w-5 text-blue-400" />
+          </div>
+          <div className="text-2xl font-bold text-foreground">{priorityCounts.inProgress}</div>
+        </button>
+        
+        <button
           onClick={() => handlePriorityClick('outstandingBalance')}
           className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 hover:bg-red-500/30 transition-colors text-left"
         >
@@ -630,25 +845,14 @@ export default function JobSuitePage() {
         </button>
         
         <button
-          onClick={() => handlePriorityClick('readyToClose')}
+          onClick={() => handlePriorityClick('paid')}
           className="bg-green-500/20 border border-green-500/50 rounded-lg p-4 hover:bg-green-500/30 transition-colors text-left"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-green-400">Ready to Close</span>
+            <span className="text-sm font-medium text-green-400">Paid</span>
             <CheckCircle2 className="h-5 w-5 text-green-400" />
           </div>
-          <div className="text-2xl font-bold text-foreground">{priorityCounts.readyToClose}</div>
-        </button>
-        
-        <button
-          onClick={() => handlePriorityClick('missingPhotos')}
-          className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 hover:bg-blue-500/30 transition-colors text-left"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-blue-400">Missing Photos</span>
-            <ImageIcon className="h-5 w-5 text-blue-400" />
-          </div>
-          <div className="text-2xl font-bold text-foreground">{priorityCounts.missingPhotos}</div>
+          <div className="text-2xl font-bold text-foreground">{priorityCounts.paid}</div>
         </button>
       </div>
 
@@ -704,25 +908,63 @@ export default function JobSuitePage() {
                         <td className="px-4 py-4">
                           <span className={cn(
                             'px-2 py-1 rounded text-xs font-semibold',
-                            job.status === 'approved' && 'bg-green-500/20 text-green-400',
-                            job.status === 'pending_approval' && 'bg-yellow-500/20 text-yellow-400',
-                            job.status === 'in_progress' && 'bg-blue-500/20 text-blue-400',
-                            job.status === 'completed' && 'bg-gray-500/20 text-gray-400',
-                            job.status === 'draft' && 'bg-gray-500/20 text-gray-400',
+                            job.paid && 'bg-purple-500/20 text-purple-400',
+                            !job.paid && job.status === 'approved' && 'bg-green-500/20 text-green-400',
+                            !job.paid && job.status === 'pending_approval' && 'bg-yellow-500/20 text-yellow-400',
+                            !job.paid && job.status === 'in_progress' && 'bg-blue-500/20 text-blue-400',
+                            !job.paid && job.status === 'completed' && 'bg-gray-500/20 text-gray-400',
+                            !job.paid && job.status === 'draft' && 'bg-gray-500/20 text-gray-400',
                           )}>
-                            {job.status.replace('_', ' ').toUpperCase()}
+                            {job.paid ? 'PAID' : job.status.replace('_', ' ').toUpperCase()}
                           </span>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="text-sm">
-                            <div className="text-foreground">${job.revenue.toLocaleString()}</div>
-                            <div className="text-foreground/70">${job.cost.toLocaleString()}</div>
-                            <div className={cn(
-                              'font-semibold',
-                              job.profit > 0 ? 'text-green-400' : 'text-red-400'
-                            )}>
-                              ${job.profit.toLocaleString()}
-                            </div>
+                          <div className="text-sm space-y-1">
+                            {(() => {
+                              // Get cost data from Cost object or top-level fields
+                              const costData = (job as any).Cost || {}
+                              const materialsCost = costData.materialsCost !== undefined ? costData.materialsCost : ((job as any).materialsCost !== undefined ? (job as any).materialsCost : 0)
+                              const payrollCost = costData.payrollCost !== undefined ? costData.payrollCost : ((job as any).payrollCost !== undefined ? (job as any).payrollCost : 0)
+                              
+                              // Always calculate actual cost: materials + payroll (no fallback to estimated)
+                              const actualCost = materialsCost + payrollCost
+                              
+                              // Calculate profit: revenue - actual cost
+                              const revenue = job.revenue || 0
+                              const profit = revenue - actualCost
+                              
+                              // Debug logging
+                              console.log('🟣 Job Table - Cost Calculation:', {
+                                jobId: job.id,
+                                jobName: job.name,
+                                revenue,
+                                materialsCost,
+                                payrollCost,
+                                actualCost,
+                                profit,
+                                costData,
+                                jobCost: job.cost,
+                                jobObject: {
+                                  hasCost: !!(job as any).Cost,
+                                  Cost: (job as any).Cost,
+                                  topLevelMaterialsCost: (job as any).materialsCost,
+                                  topLevelPayrollCost: (job as any).payrollCost,
+                                }
+                              })
+                              
+                              return (
+                                <>
+                                  <div className="text-foreground">${revenue.toLocaleString()}</div>
+                                  <div className="text-foreground/70">${actualCost.toLocaleString()}</div>
+                                  <div className={cn(
+                                    'font-semibold',
+                                    profit > 0 ? 'text-green-400' : profit < 0 ? 'text-red-400' : 'text-foreground/70'
+                                  )}>
+                                    ${profit.toLocaleString()}
+                                  </div>
+                                </>
+                              )
+                            })()}
                           </div>
                         </td>
                         <td className="px-4 py-4 text-sm text-foreground/70">
@@ -812,7 +1054,7 @@ export default function JobSuitePage() {
                       </Button>
                     </>
                   )}
-                  {priorityCounts.readyToClose > 0 && selectedJob.status === 'in_progress' && (
+                  {selectedJob.status === 'in_progress' && (
                     <>
                       <Button variant="outline" className="w-full justify-start">
                         <DollarSign className="h-4 w-4 mr-2" />
@@ -832,9 +1074,161 @@ export default function JobSuitePage() {
               </div>
             </>
           ) : (
-            <div className="bg-base border border-accent/20 rounded-lg p-4 text-center text-foreground/70">
-              Select a job to view details
-            </div>
+            <>
+              {/* Quick Actions */}
+              <div className="bg-base border border-accent/20 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
+                <div className="space-y-3">
+                  {/* Add Material */}
+                  <div>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setShowQuickAddMaterial(!showQuickAddMaterial)}
+                    >
+                      <Package className="h-4 w-4 mr-2" />
+                      Add Material
+                    </Button>
+                    {showQuickAddMaterial && (
+                      <div className="mt-3 p-3 bg-foreground/5 border border-accent/20 rounded-lg space-y-3">
+                        <Input
+                          label="Material Name"
+                          value={quickMaterialName}
+                          onChange={(e) => setQuickMaterialName(e.target.value)}
+                          placeholder="e.g., Cinder Block"
+                        />
+                        <Input
+                          label="Cost per Unit"
+                          type="number"
+                          value={quickMaterialCost}
+                          onChange={(e) => setQuickMaterialCost(e.target.value)}
+                          placeholder="0.00"
+                          step="0.01"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={async () => {
+                              if (!quickMaterialName.trim() || !quickMaterialCost) {
+                                showToast('Please fill in all fields', 'error')
+                                return
+                              }
+                              try {
+                                const cost = parseFloat(quickMaterialCost)
+                                if (isNaN(cost) || cost < 0) {
+                                  showToast('Please enter a valid cost', 'error')
+                                  return
+                                }
+                                await addMaterial(quickMaterialName.trim(), cost)
+                                showToast('Material added successfully', 'success')
+                                setQuickMaterialName('')
+                                setQuickMaterialCost('')
+                                setShowQuickAddMaterial(false)
+                                await loadMaterials()
+                              } catch (error: any) {
+                                showToast(error.message || 'Failed to add material', 'error')
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setShowQuickAddMaterial(false)
+                              setQuickMaterialName('')
+                              setQuickMaterialCost('')
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add Service */}
+                  <div>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setShowQuickAddService(!showQuickAddService)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Service
+                    </Button>
+                    {showQuickAddService && (
+                      <div className="mt-3 p-3 bg-foreground/5 border border-accent/20 rounded-lg space-y-3">
+                        <Input
+                          label="Description"
+                          value={quickServiceDescription}
+                          onChange={(e) => setQuickServiceDescription(e.target.value)}
+                          placeholder="e.g., Set single wide"
+                        />
+                        <Input
+                          label="Price"
+                          type="number"
+                          value={quickServicePrice}
+                          onChange={(e) => setQuickServicePrice(e.target.value)}
+                          placeholder="0.00"
+                          step="0.01"
+                        />
+                        <Input
+                          label="Time Estimation (days)"
+                          type="text"
+                          value={quickServiceTimeEstimate}
+                          onChange={(e) => setQuickServiceTimeEstimate(e.target.value)}
+                          placeholder="e.g., 3"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={async () => {
+                              if (!quickServiceDescription.trim() || !quickServicePrice || !quickServiceTimeEstimate.trim()) {
+                                showToast('Please fill in all fields', 'error')
+                                return
+                              }
+                              try {
+                                const price = parseFloat(quickServicePrice)
+                                if (isNaN(price) || price < 0) {
+                                  showToast('Please enter a valid price', 'error')
+                                  return
+                                }
+                                await addService(quickServiceDescription.trim(), price, quickServiceTimeEstimate.trim())
+                                showToast('Service added successfully', 'success')
+                                setQuickServiceDescription('')
+                                setQuickServicePrice('')
+                                setQuickServiceTimeEstimate('')
+                                setShowQuickAddService(false)
+                              } catch (error: any) {
+                                showToast(error.message || 'Failed to add service', 'error')
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setShowQuickAddService(false)
+                              setQuickServiceDescription('')
+                              setQuickServicePrice('')
+                              setQuickServiceTimeEstimate('')
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -1134,11 +1528,28 @@ export default function JobSuitePage() {
                     </Button>
                   </div>
 
+                  {/* Hours per Day Setting */}
+                  <div className="bg-foreground/5 border border-accent/20 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Hours per Day
+                    </label>
+                    <Input
+                      type="number"
+                      value={hoursPerDay}
+                      onChange={(e) => setHoursPerDay(Math.max(1, parseInt(e.target.value) || 10))}
+                      min="1"
+                      className="w-32"
+                    />
+                    <p className="text-xs text-foreground/70 mt-1">
+                      Default: 10 hours. This affects payroll calculations for all selected employees.
+                    </p>
+                  </div>
+
                   <div className="space-y-2">
                     {allEmployees.map((employee) => {
                       const isSelected = selectedEmployees.includes(employee.uid)
                       const totalDays = selectedJob.jobs?.reduce((sum, job) => sum + (job.timeEstimate || 0), 0) || 0
-                      const hours = totalDays * 8
+                      const hours = totalDays * hoursPerDay
                       const totalCost = isSelected ? employee.hourlyRate * hours : 0
                       
                       return (
@@ -1196,12 +1607,16 @@ export default function JobSuitePage() {
                         <span className="text-foreground">{selectedEmployees.length}</span>
                       </div>
                       <div className="flex justify-between">
+                        <span className="text-foreground/70">Hours per Day:</span>
+                        <span className="text-foreground">{hoursPerDay}</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span className="text-foreground/70">Estimated Payroll:</span>
                         <span className="text-foreground font-semibold">
                           ${selectedEmployees.reduce((sum, empId) => {
                             const emp = allEmployees.find(e => e.uid === empId)
                             const days = selectedJob.jobs?.reduce((s, j) => s + (j.timeEstimate || 0), 0) || 0
-                            return sum + (emp ? emp.hourlyRate * days * 8 : 0)
+                            return sum + (emp ? emp.hourlyRate * days * hoursPerDay : 0)
                           }, 0).toLocaleString()}
                         </span>
                       </div>
@@ -1222,11 +1637,9 @@ export default function JobSuitePage() {
                         onChange={(e) => handlePhotoUpload(e.target.files)}
                         className="hidden"
                       />
-                      <Button variant="primary" asChild>
-                        <span>
-                          <Camera className="h-4 w-4 mr-2" />
-                          {uploadingPhotos ? 'Uploading...' : 'Upload Photos'}
-                        </span>
+                      <Button variant="primary">
+                        <Camera className="h-4 w-4 mr-2" />
+                        {uploadingPhotos ? 'Uploading...' : 'Upload Photos'}
                       </Button>
                     </label>
                   </div>

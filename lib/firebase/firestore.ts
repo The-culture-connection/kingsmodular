@@ -176,12 +176,22 @@ export async function getJobs(): Promise<Job[]> {
     querySnapshot.forEach((doc) => {
       const data = doc.data()
       // Handle both naming conventions: 'name' or document ID, 'Description' or 'description', 'Price' or 'price'
+      // Handle Time Estimation - can be string or number
+      let timeEstimate = 0
+      const timeEstValue = data.timeEstimate || data.time_estimate || data.TimeEstimate || data['Time Estimation'] || 0
+      if (typeof timeEstValue === 'string') {
+        // Parse string like "3 " to number
+        timeEstimate = parseFloat(timeEstValue.trim()) || 0
+      } else {
+        timeEstimate = timeEstValue || 0
+      }
+      
       jobs.push({
         id: doc.id,
         name: data.name || data.Name || doc.id, // Use document ID as fallback if no name field
         description: data.description || data.Description || '',
         price: data.price || data.Price || 0,
-        timeEstimate: data.timeEstimate || data.time_estimate || data.TimeEstimate || 0,
+        timeEstimate: timeEstimate,
         createdAt: data.createdAt?.toDate() || data.CreatedAt?.toDate() || new Date(),
       })
     })
@@ -190,6 +200,40 @@ export async function getJobs(): Promise<Job[]> {
   } catch (error: any) {
     console.error('Error fetching jobs:', error)
     throw new Error(`Failed to get jobs: ${error.message}`)
+  }
+}
+
+/**
+ * Add a new service/job to the Jobs collection
+ * Uses the description as the document ID (like "Single Wide Setup")
+ */
+export async function addService(description: string, price: number, timeEstimate: string): Promise<string> {
+  try {
+    // Use description as document ID - trim and normalize spaces
+    // Firestore allows spaces in document IDs, so we keep them
+    const docId = description.trim().replace(/\s+/g, ' ')
+    
+    if (!docId) {
+      throw new Error('Description cannot be empty')
+    }
+    
+    // Check if document already exists - if so, update it instead of creating new
+    const serviceRef = doc(db, JOBS_COLLECTION, docId)
+    await setDoc(serviceRef, {
+      Description: description,
+      description: description,
+      Price: price,
+      price: price,
+      'Time Estimation': timeEstimate,
+      TimeEstimate: timeEstimate,
+      timeEstimate: timeEstimate,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: false }) // Don't merge - replace if exists
+    
+    return docId
+  } catch (error: any) {
+    throw new Error(`Failed to add service: ${error.message}`)
   }
 }
 
