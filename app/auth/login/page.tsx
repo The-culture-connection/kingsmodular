@@ -40,7 +40,10 @@ export default function LoginPage() {
       } else if (role === 'customer') {
         console.log('[LoginRedirect] Redirecting to customer dashboard')
         router.push('/customer/dashboard')
-      } else if (role === 'field_staff' || role === 'employee') {
+      } else if (role === 'employee') {
+        console.log('[LoginRedirect] Redirecting to employee dashboard')
+        router.push('/employee/dashboard')
+      } else if (role === 'field_staff') {
         console.log('[LoginRedirect] Redirecting to field dashboard')
         router.push('/field/dashboard')
       } else {

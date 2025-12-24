@@ -48,6 +48,8 @@ import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 import { cn } from '@/lib/utils'
 import { getStatusDisplayLabel } from '@/lib/utils/status'
+import { calculateActualPayrollForJob, syncPayrollCostForJob } from '@/lib/firebase/payrollSync'
+import { RefreshCw } from 'lucide-react'
 
 export default function JobSuitePage() {
   const { showToast } = useToast()
@@ -107,6 +109,8 @@ export default function JobSuitePage() {
   const [editingExpense, setEditingExpense] = useState<'materials' | 'payroll' | 'gas' | 'mileagePayroll' | null>(null)
   const [expenseValue, setExpenseValue] = useState<string>('')
   const [isSavingExpense, setIsSavingExpense] = useState(false)
+  const [isSyncingPayroll, setIsSyncingPayroll] = useState(false)
+  const [actualPayrollData, setActualPayrollData] = useState<any>(null)
   
   // Modals
   const [showEditStatusModal, setShowEditStatusModal] = useState(false)
@@ -489,6 +493,42 @@ export default function JobSuitePage() {
     const currentValue = costData[expenseKey] ?? (selectedJob as any)[expenseKey] ?? 0
     setExpenseValue(currentValue.toString())
     setEditingExpense(expenseType)
+  }
+
+  const handleSyncPayroll = async () => {
+    if (!selectedJob) return
+    
+    setIsSyncingPayroll(true)
+    try {
+      // First calculate to show preview
+      const payrollData = await calculateActualPayrollForJob(selectedJob.id)
+      setActualPayrollData(payrollData)
+      
+      // Then sync
+      await syncPayrollCostForJob(selectedJob.id)
+      showToast('Payroll synced with actual hours successfully', 'success')
+      
+      // Reload job data
+      await loadJobs()
+      handleJobClick(selectedJob) // Refresh the drawer
+    } catch (error: any) {
+      console.error('Error syncing payroll:', error)
+      showToast(error.message || 'Failed to sync payroll', 'error')
+    } finally {
+      setIsSyncingPayroll(false)
+    }
+  }
+
+  const handleLoadActualPayroll = async () => {
+    if (!selectedJob) return
+    
+    try {
+      const payrollData = await calculateActualPayrollForJob(selectedJob.id)
+      setActualPayrollData(payrollData)
+    } catch (error: any) {
+      console.error('Error loading actual payroll:', error)
+      showToast('Failed to load actual payroll data', 'error')
+    }
   }
 
   const handleViewJob = (job: TransformedJob) => {
@@ -1927,7 +1967,66 @@ export default function JobSuitePage() {
                             
                             {(payroll && payroll.length > 0) ? (
                               <div className="mb-4 mt-4">
-                                <div className="text-sm font-semibold text-foreground mb-2">Payroll</div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="text-sm font-semibold text-foreground">Payroll</div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleLoadActualPayroll}
+                                    className="flex items-center gap-1"
+                                  >
+                                    <RefreshCw className="h-3 w-3" />
+                                    Check Actual
+                                  </Button>
+                                </div>
+                                
+                                {actualPayrollData && (
+                                  <div className="mb-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-sm font-medium text-blue-400">Actual vs Estimated</span>
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={handleSyncPayroll}
+                                        disabled={isSyncingPayroll}
+                                        className="flex items-center gap-1"
+                                      >
+                                        <RefreshCw className={cn("h-3 w-3", isSyncingPayroll && "animate-spin")} />
+                                        {isSyncingPayroll ? 'Syncing...' : 'Sync Payroll'}
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-foreground/70">Estimated:</span>
+                                        <span className="ml-2 font-semibold text-foreground">
+                                          ${actualPayrollData.estimatedPayrollCost.toFixed(2)}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-foreground/70">Actual:</span>
+                                        <span className={cn(
+                                          "ml-2 font-semibold",
+                                          actualPayrollData.difference > 0 ? "text-red-400" : "text-green-400"
+                                        )}>
+                                          ${actualPayrollData.actualPayrollCost.toFixed(2)}
+                                        </span>
+                                      </div>
+                                      {actualPayrollData.difference !== 0 && (
+                                        <div className="col-span-2 text-xs">
+                                          <span className="text-foreground/70">Difference:</span>
+                                          <span className={cn(
+                                            "ml-2 font-semibold",
+                                            actualPayrollData.difference > 0 ? "text-red-400" : "text-green-400"
+                                          )}>
+                                            {actualPayrollData.difference > 0 ? '+' : ''}
+                                            ${actualPayrollData.difference.toFixed(2)}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                
                                 <div className="space-y-2 mb-2">
                                   {payroll.map((emp: any, index: number) => (
                                     <div key={index} className="flex justify-between items-center text-sm bg-foreground/5 p-2 rounded">

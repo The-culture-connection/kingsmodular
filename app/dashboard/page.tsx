@@ -29,7 +29,10 @@ export default function DashboardRedirectPage() {
       } else if (role === 'customer') {
         console.log('[DashboardRedirect] Redirecting to customer dashboard')
         router.push('/customer/dashboard')
-      } else if (role === 'field_staff' || role === 'employee') {
+      } else if (role === 'employee') {
+        console.log('[DashboardRedirect] Redirecting to employee dashboard')
+        router.push('/employee/dashboard')
+      } else if (role === 'field_staff') {
         console.log('[DashboardRedirect] Redirecting to field dashboard')
         router.push('/field/dashboard')
       } else if (user.approvalStatus === 'pending') {
