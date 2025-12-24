@@ -938,10 +938,16 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
           customerSurcharge: `$${gasCalc.customerSurcharge.toFixed(2)}`,
           distanceMiles: `${gasCalc.distanceMiles.toFixed(2)} miles`,
           surgeApplied: gasCalc.surgeApplied ? 'YES' : 'NO',
+          note: 'Gas cost will be included in Cost.gasCost',
         })
       } else {
         gasCalculations.push(null)
-        console.warn(`${logPrefix} ⚠️ Job item ${i + 1} gas calculation returned null`)
+        console.warn(`${logPrefix} ⚠️ Job item ${i + 1} gas calculation returned null - possible reasons:`, {
+          missingLocation: !jobItemLocation,
+          gasPricingDisabled: 'Check config.enabled',
+          invalidDistance: 'Distance may be 0 or invalid',
+          note: 'Gas cost will be 0 for this job item',
+        })
       }
       console.log(`${logPrefix} ────────────────────────────────────────`)
     }
@@ -951,6 +957,9 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
       totalGasSurcharge: `$${totalGasSurcharge.toFixed(2)}`,
       calculationsCount: gasCalculations.filter(g => g !== null).length,
       failedCount: gasCalculations.filter(g => g === null).length,
+      note: totalGasCost > 0 
+        ? 'Gas cost will be saved to Cost.gasCost' 
+        : 'Gas cost is 0 (will still be saved for expense tracking)',
     })
     
     // Step 5: Update job items with gas calculations and adjust totalPrice
@@ -1003,11 +1012,19 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     // Step 7: Update Cost object
     console.log(`${logPrefix} Step 7: Updating Cost summary...`)
     const existingCost = job.Cost || {}
+    // Always save gas cost, even if 0 (it's an internal expense that should be tracked)
+    const roundedGasCost = Math.round(totalGasCost * 100) / 100
     const newCost = {
       ...existingCost,
-      gasCost: Math.round(totalGasCost * 100) / 100, // Round to 2 decimals
-      totalCost: Math.round(((existingCost.materialsCost || 0) + (existingCost.payrollCost || 0) + totalGasCost) * 100) / 100,
+      gasCost: roundedGasCost, // Always include, even if 0
+      totalCost: Math.round(((existingCost.materialsCost || 0) + (existingCost.payrollCost || 0) + roundedGasCost) * 100) / 100,
     }
+    
+    console.log(`${logPrefix} Gas cost to save:`, {
+      totalGasCost,
+      roundedGasCost,
+      note: 'Always saved, even if 0 (internal expense tracking)',
+    })
     
     console.log(`${logPrefix} ✅ Cost summary:`, {
       materialsCost: `$${(existingCost.materialsCost || 0).toFixed(2)}`,
@@ -1031,9 +1048,8 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     if (newTotalPrice !== undefined) {
       updatePayload.totalPrice = Math.round(newTotalPrice * 100) / 100
     }
-    if (totalGasCost !== undefined) {
-      updatePayload.gasCost = Math.round(totalGasCost * 100) / 100
-    }
+    // Always include gasCost in update, even if 0 (for expense tracking)
+    updatePayload.gasCost = Math.round(totalGasCost * 100) / 100
     
     // Filter out undefined values recursively (Firestore doesn't allow undefined)
     const cleanedPayload = removeUndefinedValues(updatePayload)

@@ -157,6 +157,36 @@ export default function CustomerEstimatesPage() {
                   </div>
                 </div>
 
+                {/* Surge Pricing Message */}
+                {(() => {
+                  const jobs = estimate.jobs || []
+                  const hasSurge = jobs.some((jobItem: any) => 
+                    jobItem.gas?.surgeApplied === true
+                  )
+                  const totalSurcharge = jobs.reduce((sum: number, jobItem: any) => 
+                    sum + (jobItem.gas?.customerSurcharge || 0), 0
+                  )
+                  
+                  if (hasSurge && totalSurcharge > 0) {
+                    return (
+                      <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-blue-400 mb-1">
+                              Distance-Based Surcharge Applied
+                            </p>
+                            <p className="text-xs text-foreground/70">
+                              This job is scheduled near another project location, so a mileage surcharge of ${totalSurcharge.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been added to cover additional travel costs.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+
                 <div className="border-t border-accent/20 pt-4 mt-4">
                   <h3 className="text-sm font-semibold text-foreground mb-3">Selected Jobs:</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -170,9 +200,16 @@ export default function CustomerEstimatesPage() {
                             <p className="font-medium text-foreground text-sm">{job.name}</p>
                             <p className="text-xs text-foreground/70 mt-1">{job.description}</p>
                           </div>
-                          <p className="text-sm font-bold text-accent ml-2">
-                            ${job.price.toLocaleString()}
-                          </p>
+                          <div className="text-right ml-2">
+                            <p className="text-sm font-bold text-accent">
+                              ${(job.totalPrice || job.price).toLocaleString()}
+                            </p>
+                            {job.gas?.customerSurcharge > 0 && (
+                              <p className="text-xs text-blue-400 mt-0.5">
+                                +${job.gas.customerSurcharge.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} surcharge
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}

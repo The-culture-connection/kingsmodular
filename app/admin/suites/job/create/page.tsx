@@ -127,12 +127,10 @@ export default function CreateJobPage() {
       {/* Total Price and Time Estimation Display - Upper Right (Horizontal) */}
       <div className="absolute top-0 right-0 bg-accent/20 border border-accent rounded-lg p-4 mb-4">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-accent" />
-            <div>
-              <p className="text-sm text-foreground/70">Total Price</p>
-              <p className="text-2xl font-bold text-accent">${totalPrice.toLocaleString()}</p>
-            </div>
+          <div>
+            <p className="text-sm text-foreground/70">Total Price</p>
+            <p className="text-2xl font-bold text-accent">{totalPrice.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            <p className="text-xs text-foreground/50 mt-1">*Final price may include mileage surcharge</p>
           </div>
           {totalTimeEstimate > 0 && (
             <div className="flex items-center gap-2 border-l border-accent/30 pl-6">

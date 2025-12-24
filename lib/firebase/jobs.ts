@@ -203,23 +203,61 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
   const assignedEmployees = (estimate as any).assignedEmployees || []
   const materialsCost = costData.materialsCost || (estimate as any).materialsCost || 0
   const payrollCost = costData.payrollCost || (estimate as any).payrollCost || 0
+  const gasCost = costData.gasCost || (estimate as any).gasCost || 0
   const materials = costData.materials || (estimate as any).materials || []
   const payroll = costData.payroll || (estimate as any).payroll || []
   const totalDays = (estimate as any).totalDays || 0
   const photos = (estimate as any).photos || []
   
-  // Calculate cost and profit with actual materials and payroll (always use actual, even if 0)
-  const actualCost = materialsCost + payrollCost
+  // Calculate cost and profit with actual materials, payroll, and gas (always use actual, even if 0)
+  const actualCost = materialsCost + payrollCost + gasCost
   const actualProfit = revenue - actualCost
 
-  console.log('TransformEstimateToJob - Cost Calculation:', {
+  console.log('🟢 [TRANSFORM_ESTIMATE] ========================================')
+  console.log('🟢 [TRANSFORM_ESTIMATE] Transforming estimate to job:', {
     jobId: estimate.id,
+    estimateLocation: estimate.location,
+    jobsCount: estimate.jobs?.length || 0,
+  })
+  
+  console.log('🟢 [TRANSFORM_ESTIMATE] Cost data extraction:')
+  console.log('🟢 [TRANSFORM_ESTIMATE]   Cost object:', {
+    exists: !!(estimate as any).Cost,
+    keys: (estimate as any).Cost ? Object.keys((estimate as any).Cost) : [],
+    gasCost: costData.gasCost,
+    materialsCost: costData.materialsCost,
+    payrollCost: costData.payrollCost,
+    totalCost: costData.totalCost,
+  })
+  console.log('🟢 [TRANSFORM_ESTIMATE]   Top-level fields:', {
+    gasCost: (estimate as any).gasCost,
+    materialsCost: (estimate as any).materialsCost,
+    payrollCost: (estimate as any).payrollCost,
+  })
+  console.log('🟢 [TRANSFORM_ESTIMATE]   Job items gas data:', {
+    jobsWithGas: estimate.jobs?.filter((j: any) => j.gas).length || 0,
+    totalJobs: estimate.jobs?.length || 0,
+    gasDetails: estimate.jobs?.map((j: any, idx: number) => ({
+      index: idx,
+      name: j.name || j.id,
+      hasGas: !!j.gas,
+      gasExpenseCost: j.gas?.expenseCost || 0,
+      gasSurcharge: j.gas?.customerSurcharge || 0,
+      surgeApplied: j.gas?.surgeApplied || false,
+    })) || [],
+  })
+  
+  console.log('🟢 [TRANSFORM_ESTIMATE] Final cost calculation:', {
     revenue,
     materialsCost,
     payrollCost,
+    gasCost,
     actualCost,
-    actualProfit
+    actualProfit,
+    formula: `${materialsCost} + ${payrollCost} + ${gasCost} = ${actualCost}`,
+    note: gasCost === 0 ? '⚠️ Gas cost is 0 - may need gas calculation' : '✅ Gas cost included',
   })
+  console.log('🟢 [TRANSFORM_ESTIMATE] ========================================')
 
   return {
     id: estimate.id,
@@ -227,7 +265,7 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
     site: site,
     status: status,
     revenue: revenue,
-    cost: actualCost, // Always use actual cost (materials + payroll), even if 0
+    cost: actualCost, // Always use actual cost (materials + payroll + gas), even if 0
     profit: actualProfit, // Always use actual profit calculation
     startDate: estimate.dateRange.start || '',
     endDate: estimate.dateRange.end || '',
@@ -256,6 +294,7 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
       materials,
       payrollCost,
       payroll,
+      gasCost,
       totalCost: actualCost,
     },
   }

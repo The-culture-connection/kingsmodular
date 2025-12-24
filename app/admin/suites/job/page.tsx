@@ -724,7 +724,8 @@ export default function JobSuitePage() {
     const payrollCost = costData.payrollCost ?? selectedJob.payrollCost ?? 0
     const gasCost = costData.gasCost ?? (selectedJob as any).gasCost ?? 0
     const totalCost = costData.totalCost ?? (materialsCost + payrollCost + gasCost)
-    const revenue = selectedJob.revenue || 0
+    // Use totalPrice (includes surge surcharge) instead of revenue field
+    const revenue = (selectedJob as any).totalPrice || selectedJob.revenue || 0
     const profit = revenue - totalCost
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0
     
@@ -972,34 +973,148 @@ export default function JobSuitePage() {
                         <td className="px-4 py-4">
                           <div className="text-sm space-y-1">
                             {(() => {
+                              const logPrefix = '🟣 [JOB_TABLE_COST]'
+                              console.log(`${logPrefix} ========================================`)
+                              console.log(`${logPrefix} Calculating cost for job: ${job.id} (${job.name})`)
+                              
                               // Get cost data from Cost object or top-level fields
                               const costData = (job as any).Cost || {}
+                              console.log(`${logPrefix} Step 1: Reading cost data:`, {
+                                hasCostObject: !!(job as any).Cost,
+                                costDataKeys: Object.keys(costData),
+                                costDataGasCost: costData.gasCost,
+                                topLevelGasCost: (job as any).gasCost,
+                              })
+                              
                               const materialsCost = costData.materialsCost !== undefined ? costData.materialsCost : ((job as any).materialsCost !== undefined ? (job as any).materialsCost : 0)
                               const payrollCost = costData.payrollCost !== undefined ? costData.payrollCost : ((job as any).payrollCost !== undefined ? (job as any).payrollCost : 0)
                               
-                              // Always calculate actual cost: materials + payroll (no fallback to estimated)
-                              const actualCost = materialsCost + payrollCost
+                              console.log(`${logPrefix} Step 2: Materials & Payroll:`, {
+                                materialsCost,
+                                payrollCost,
+                                source: {
+                                  materialsFromCost: costData.materialsCost !== undefined,
+                                  materialsFromTop: (job as any).materialsCost !== undefined,
+                                  payrollFromCost: costData.payrollCost !== undefined,
+                                  payrollFromTop: (job as any).payrollCost !== undefined,
+                                }
+                              })
+                              
+                              // Get gas cost from Cost object, top-level, or calculate from job items
+                              let gasCost = costData.gasCost ?? (job as any).gasCost ?? 0
+                              console.log(`${logPrefix} Step 3: Initial gas cost:`, {
+                                fromCostObject: costData.gasCost,
+                                fromTopLevel: (job as any).gasCost,
+                                initialGasCost: gasCost,
+                                source: costData.gasCost !== undefined ? 'Cost.gasCost' : ((job as any).gasCost !== undefined ? 'top-level gasCost' : 'default 0'),
+                              })
+                              
+                              // If gas cost is 0 or undefined, try to calculate from job items
+                              // This ensures we always show gas cost even if it wasn't saved to Cost object
+                              if ((gasCost === 0 || gasCost === undefined) && (job as any).jobs) {
+                                const jobs = (job as any).jobs || []
+                                console.log(`${logPrefix} Step 4: Gas cost is 0/undefined, checking job items:`, {
+                                  jobsCount: jobs.length,
+                                  jobItems: jobs.map((j: any, idx: number) => ({
+                                    index: idx,
+                                    name: j.name || j.id,
+                                    hasGas: !!j.gas,
+                                    gasData: j.gas ? {
+                                      expenseCost: j.gas.expenseCost,
+                                      customerSurcharge: j.gas.customerSurcharge,
+                                      surgeApplied: j.gas.surgeApplied,
+                                      distanceMiles: j.gas.distanceMiles,
+                                    } : null,
+                                  })),
+                                })
+                                
+                                const calculatedGasCost = jobs.reduce((sum: number, jobItem: any, idx: number) => {
+                                  const itemGasCost = jobItem.gas?.expenseCost || 0
+                                  if (itemGasCost > 0) {
+                                    console.log(`${logPrefix}   Job item ${idx + 1} (${jobItem.name || jobItem.id}): gas expenseCost = $${itemGasCost.toFixed(2)}`)
+                                  }
+                                  return sum + itemGasCost
+                                }, 0)
+                                
+                                if (calculatedGasCost > 0) {
+                                  console.log(`${logPrefix} ✅ Found gas cost in job items: $${calculatedGasCost.toFixed(2)}`)
+                                  gasCost = calculatedGasCost
+                                } else {
+                                  console.log(`${logPrefix} ⚠️ No gas cost found in job items (all expenseCost are 0 or missing)`)
+                                }
+                              } else {
+                                console.log(`${logPrefix} Step 4: Skipped job items check:`, {
+                                  reason: gasCost > 0 ? 'gasCost already > 0' : 'no jobs array',
+                                  gasCost,
+                                  hasJobs: !!(job as any).jobs,
+                                })
+                              }
+                              
+                              // Always include gas cost in calculation, even if 0 (for expense tracking)
+                              // Note: gasCost might be 0 if calculation failed or gas pricing is disabled
+                              
+                              // Always calculate actual cost: materials + payroll + gas (no fallback to estimated)
+                              const actualCost = materialsCost + payrollCost + gasCost
                               
                               // Calculate profit: revenue - actual cost
-                              const revenue = job.revenue || 0
+                              // Use totalPrice (includes surge surcharge) instead of revenue field
+                              const revenue = (job as any).totalPrice || job.revenue || 0
                               const profit = revenue - actualCost
                               
-                              // Debug logging
+                              console.log(`${logPrefix} Step 5: Final calculation:`, {
+                                revenue,
+                                materialsCost,
+                                payrollCost,
+                                gasCost,
+                                actualCost,
+                                profit,
+                                formula: `${materialsCost} + ${payrollCost} + ${gasCost} = ${actualCost}`,
+                              })
+                              
+                              console.log(`${logPrefix} Step 6: Full job object inspection:`, {
+                                jobId: job.id,
+                                hasCostObject: !!(job as any).Cost,
+                                costObject: {
+                                  materialsCost: costData.materialsCost,
+                                  payrollCost: costData.payrollCost,
+                                  gasCost: costData.gasCost,
+                                  totalCost: costData.totalCost,
+                                },
+                                topLevelFields: {
+                                  materialsCost: (job as any).materialsCost,
+                                  payrollCost: (job as any).payrollCost,
+                                  gasCost: (job as any).gasCost,
+                                },
+                                hasJobsArray: !!(job as any).jobs,
+                                jobsArrayLength: (job as any).jobs?.length || 0,
+                                transformedJobCost: job.cost,
+                                totalPrice: (job as any).totalPrice,
+                                revenue: job.revenue,
+                              })
+                              
+                              console.log(`${logPrefix} ========================================`)
+                              
+                              // Debug logging (keeping original format for compatibility)
                               console.log('🟣 Job Table - Cost Calculation:', {
                                 jobId: job.id,
                                 jobName: job.name,
                                 revenue,
                                 materialsCost,
                                 payrollCost,
+                                gasCost,
                                 actualCost,
                                 profit,
                                 costData,
                                 jobCost: job.cost,
+                                totalPrice: (job as any).totalPrice,
+                                hasJobs: !!(job as any).jobs,
+                                jobsCount: (job as any).jobs?.length || 0,
                                 jobObject: {
                                   hasCost: !!(job as any).Cost,
                                   Cost: (job as any).Cost,
                                   topLevelMaterialsCost: (job as any).materialsCost,
                                   topLevelPayrollCost: (job as any).payrollCost,
+                                  topLevelGasCost: (job as any).gasCost,
                                 }
                               })
                               
@@ -1567,10 +1682,41 @@ export default function JobSuitePage() {
                             )}
                             
                             {gasCost > 0 && (
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-foreground/70">Gas Cost</span>
-                                <span className="text-foreground/70">${gasCost.toLocaleString()}</span>
-                              </div>
+                              <>
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-foreground/70">Gas Cost</span>
+                                  <span className="text-foreground/70">${gasCost.toLocaleString()}</span>
+                                </div>
+                                {/* Check if any job item has surge pricing applied */}
+                                {(() => {
+                                  const jobs = (selectedJob as any).jobs || []
+                                  const hasSurge = jobs.some((jobItem: any) => 
+                                    jobItem.gas?.surgeApplied === true
+                                  )
+                                  const totalSurcharge = jobs.reduce((sum: number, jobItem: any) => 
+                                    sum + (jobItem.gas?.customerSurcharge || 0), 0
+                                  )
+                                  
+                                  if (hasSurge && totalSurcharge > 0) {
+                                    return (
+                                      <div className="mb-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                        <div className="flex items-start gap-2">
+                                          <MapPin className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <p className="text-sm font-medium text-blue-400 mb-1">
+                                              Distance-Based Surcharge Applied
+                                            </p>
+                                            <p className="text-xs text-foreground/70">
+                                              This job is scheduled near another project location, so a mileage surcharge of ${totalSurcharge.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been added to cover additional travel costs.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                              </>
                             )}
                             
                             <div className="border-t border-accent/20 pt-2 mt-2">

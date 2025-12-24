@@ -16,10 +16,36 @@ export function isFirebaseAdminConfigured(): boolean {
 
 /**
  * Get or initialize Firebase Admin SDK
+ * Reuses existing app if already initialized to avoid duplicate initialization errors
  */
 export function getFirebaseAdminApp(): admin.app.App {
+  // Return cached app if available
   if (adminApp) {
     return adminApp
+  }
+
+  // Check if app already exists (from previous initialization)
+  try {
+    const existingApp = admin.app()
+    if (existingApp) {
+      console.log('[FirebaseAdmin] Reusing existing Firebase Admin app')
+      adminApp = existingApp
+      return adminApp
+    }
+  } catch (error) {
+    // No existing app, continue with initialization
+  }
+
+  // Try to get from getApps() if available
+  try {
+    const apps = admin.apps
+    if (apps.length > 0) {
+      console.log('[FirebaseAdmin] Reusing existing Firebase Admin app from apps array')
+      adminApp = apps[0] as admin.app.App
+      return adminApp
+    }
+  } catch (error) {
+    // No apps found, continue with initialization
   }
 
   if (!isFirebaseAdminConfigured()) {
@@ -42,6 +68,17 @@ export function getFirebaseAdminApp(): admin.app.App {
     console.log('[FirebaseAdmin] Initialized successfully')
     return adminApp
   } catch (error: any) {
+    // If initialization fails due to existing app, try to get it
+    if (error.message?.includes('already exists')) {
+      try {
+        const existingApp = admin.app()
+        console.log('[FirebaseAdmin] App already exists, reusing it')
+        adminApp = existingApp
+        return adminApp
+      } catch (getAppError) {
+        // Fall through to throw original error
+      }
+    }
     console.error('[FirebaseAdmin] Initialization error:', error)
     throw new Error(`Failed to initialize Firebase Admin SDK: ${error.message}`)
   }
