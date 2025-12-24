@@ -141,8 +141,8 @@ export default function QuotePage() {
       {/* Total Price and Time Estimation Display - Upper Right (Horizontal) */}
       <div className="absolute top-0 right-0 bg-accent/20 border border-accent rounded-lg p-4 mb-4">
         <div className="flex items-center gap-6">
-          <div>
-            <p className="text-sm text-foreground/70">Total Price</p>
+            <div>
+              <p className="text-sm text-foreground/70">Total Price</p>
             <p className="text-2xl font-bold text-accent">{totalPrice.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
             <p className="text-xs text-foreground/50 mt-1">*Final price may include mileage surcharge</p>
           </div>

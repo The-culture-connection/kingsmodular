@@ -96,6 +96,11 @@ export default function JobSuitePage() {
   const [quickServiceMaterialCosts, setQuickServiceMaterialCosts] = useState<{ [materialId: string]: number }>({})
   const [hoursPerDay, setHoursPerDay] = useState(10) // Hours per day for payroll calculation
   
+  // Total Price editing
+  const [isEditingTotalPrice, setIsEditingTotalPrice] = useState(false)
+  const [totalPriceValue, setTotalPriceValue] = useState<string>('')
+  const [isSavingTotalPrice, setIsSavingTotalPrice] = useState(false)
+  
   // Modals
   const [showEditStatusModal, setShowEditStatusModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -350,15 +355,63 @@ export default function JobSuitePage() {
           payroll: jobData.payroll || job.payroll || [],
         }
         setSelectedJob(freshJob as TransformedJob)
+        // Initialize total price value
+        const totalPrice = (freshJob as any).totalPrice ?? freshJob.revenue ?? 0
+        setTotalPriceValue(totalPrice.toString())
       } else {
         setSelectedJob(job)
+        // Initialize total price value
+        const totalPrice = (job as any).totalPrice ?? job.revenue ?? 0
+        setTotalPriceValue(totalPrice.toString())
       }
     } catch (error) {
       console.error('Error loading fresh job data:', error)
       setSelectedJob(job)
+      // Initialize total price value
+      const totalPrice = (job as any).totalPrice ?? job.revenue ?? 0
+      setTotalPriceValue(totalPrice.toString())
     }
     setShowJobDrawer(true)
     setActiveTab('overview')
+    setIsEditingTotalPrice(false)
+  }
+  
+  const handleSaveTotalPrice = async () => {
+    if (!selectedJob) return
+    
+    const priceValue = parseFloat(totalPriceValue)
+    if (isNaN(priceValue) || priceValue < 0) {
+      showToast('Please enter a valid price', 'error')
+      return
+    }
+    
+    setIsSavingTotalPrice(true)
+    try {
+      await updateJobData(selectedJob.id, {
+        totalPrice: priceValue
+      })
+      
+      showToast('Total price updated successfully', 'success')
+      setIsEditingTotalPrice(false)
+      
+      // Reload jobs to reflect the change in the table
+      await loadJobs()
+      
+      // Reload the page to ensure all data is fresh
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Error saving total price:', error)
+      showToast(error.message || 'Failed to save total price', 'error')
+    } finally {
+      setIsSavingTotalPrice(false)
+    }
+  }
+  
+  const handleCancelTotalPriceEdit = () => {
+    // Reset to current value
+    const totalPrice = (selectedJob as any)?.totalPrice ?? selectedJob?.revenue ?? 0
+    setTotalPriceValue(totalPrice.toString())
+    setIsEditingTotalPrice(false)
   }
 
   const handleViewJob = (job: TransformedJob) => {
@@ -1606,9 +1659,62 @@ export default function JobSuitePage() {
                   <div>
                     <h3 className="text-lg font-semibold text-foreground mb-4">Financial Breakdown</h3>
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-foreground/70">Job Revenue</span>
-                        <span className="text-foreground font-semibold">${selectedJobFinancials.revenue.toLocaleString()}</span>
+                      {/* Total Price / Job Revenue Section */}
+                      <div className="bg-foreground/5 p-4 rounded-lg border border-accent/20">
+                        {isEditingTotalPrice ? (
+                          <div className="space-y-3">
+                            <div>
+                              <Input
+                                label="Total Price (Job Revenue)"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={totalPriceValue}
+                                onChange={(e) => setTotalPriceValue(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full"
+                              />
+                              <p className="text-xs text-foreground/50 mt-1">
+                                This price will be used for revenue calculations and profit margins
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="primary"
+                                onClick={handleSaveTotalPrice}
+                                disabled={isSavingTotalPrice}
+                                className="flex-1"
+                              >
+                                {isSavingTotalPrice ? 'Saving...' : 'Save'}
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                onClick={handleCancelTotalPriceEdit}
+                                disabled={isSavingTotalPrice}
+                                className="flex-1"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-foreground/70">Total Price (Job Revenue)</span>
+                              <span className="text-2xl font-bold text-accent">
+                                ${((selectedJob as any).totalPrice ?? selectedJob.revenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <Button
+                              variant="secondary"
+                              onClick={() => setIsEditingTotalPrice(true)}
+                              className="w-full mt-2"
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Total Price
+                            </Button>
+                          </div>
+                        )}
                       </div>
                       
                       {(() => {
@@ -1683,10 +1789,10 @@ export default function JobSuitePage() {
                             
                             {gasCost > 0 && (
                               <>
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="text-foreground/70">Gas Cost</span>
-                                  <span className="text-foreground/70">${gasCost.toLocaleString()}</span>
-                                </div>
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-foreground/70">Gas Cost</span>
+                                <span className="text-foreground/70">${gasCost.toLocaleString()}</span>
+                              </div>
                                 {/* Check if any job item has surge pricing applied */}
                                 {(() => {
                                   const jobs = (selectedJob as any).jobs || []

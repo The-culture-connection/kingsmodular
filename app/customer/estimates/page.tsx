@@ -203,7 +203,7 @@ export default function CustomerEstimatesPage() {
                           <div className="text-right ml-2">
                             <p className="text-sm font-bold text-accent">
                               ${(job.totalPrice || job.price).toLocaleString()}
-                            </p>
+                          </p>
                             {job.gas?.customerSurcharge > 0 && (
                               <p className="text-xs text-blue-400 mt-0.5">
                                 +${job.gas.customerSurcharge.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} surcharge
