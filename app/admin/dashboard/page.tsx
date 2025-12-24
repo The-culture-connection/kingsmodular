@@ -141,7 +141,7 @@ export default function AdminDashboardPage() {
       {/* Revenue Analytics Suite */}
       <div className="mb-8">
         <Link 
-          href="/admin/suites/revenue"
+          href="/admin/analytics"
           className="block bg-base border border-accent/20 rounded-lg p-6 hover:border-accent/40 transition-colors cursor-pointer group"
         >
           <div className="flex items-center justify-between mb-4">

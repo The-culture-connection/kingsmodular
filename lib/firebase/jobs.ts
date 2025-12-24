@@ -33,7 +33,7 @@ export interface TransformedJob {
   id: string
   name: string
   site?: string
-  status: 'draft' | 'approved' | 'in_progress' | 'completed' | 'pending_approval'
+  status: 'draft' | 'pending' | 'approved' | 'completed' | 'paid'
   revenue: number
   cost: number
   profit: number
@@ -71,8 +71,9 @@ export interface TransformedJob {
 /**
  * Normalize status from Firestore to our internal status format
  * Handles various case formats: "Approved", "approved", "pending", etc.
+ * Maps to Firebase database values: pending, draft, approved, completed, paid
  */
-function normalizeStatus(status: string): 'draft' | 'approved' | 'in_progress' | 'completed' | 'pending_approval' {
+function normalizeStatus(status: string): 'draft' | 'pending' | 'approved' | 'completed' | 'paid' {
   if (!status) return 'draft'
   
   const normalized = status.toLowerCase().trim()
@@ -83,17 +84,18 @@ function normalizeStatus(status: string): 'draft' | 'approved' | 'in_progress' |
     case 'pending':
     case 'pending_approval':
     case 'pending approval':
-      return 'pending_approval'
+      return 'pending'
     case 'in_progress':
     case 'in progress':
     case 'ongoing':
-      return 'in_progress'
+      return 'approved' // Map in_progress to approved (In Progress)
     case 'completed':
     case 'complete':
     case 'done':
+    case 'closed':
       return 'completed'
     case 'paid':
-      return 'completed' // Treat paid as completed
+      return 'paid'
     case 'denied':
     case 'rejected':
       return 'draft' // Treat denied as draft for now

@@ -31,7 +31,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Employee Suite', href: '/admin/suites/employee', icon: UserPlus },
     { name: 'Admin Suite', href: '/admin/suites/admin', icon: Settings },
-    { name: 'Revenue Analytics', href: '/admin/suites/revenue', icon: BarChart3 },
+    { name: 'Revenue Analytics', href: '/admin/analytics', icon: BarChart3 },
     { name: 'Job Suite', href: '/admin/suites/job', icon: Briefcase },
   ]
 

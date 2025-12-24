@@ -12,7 +12,7 @@ interface StatusOption {
 const STATUS_OPTIONS: StatusOption[] = [
   { value: 'all', label: 'All Statuses' },
   { value: 'draft', label: 'Draft' },
-  { value: 'pending_approval', label: 'Pending Approval' },
+  { value: 'pending', label: 'Pending Approval' },
   { value: 'approved', label: 'In Progress' },
   { value: 'completed', label: 'Closed' },
   { value: 'paid', label: 'Paid' },

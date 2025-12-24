@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { 
   Briefcase,
   Plus,
@@ -46,6 +47,7 @@ import { uploadJobPhoto, getJobPhotos } from '@/lib/firebase/photos'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 import { cn } from '@/lib/utils'
+import { getStatusDisplayLabel } from '@/lib/utils/status'
 
 export default function JobSuitePage() {
   const { showToast } = useToast()
@@ -108,11 +110,24 @@ export default function JobSuitePage() {
   const [jobToDelete, setJobToDelete] = useState<TransformedJob | null>(null)
   const [newStatus, setNewStatus] = useState<string>('')
 
+  const searchParams = useSearchParams()
+
   // Fetch jobs from Firestore
   useEffect(() => {
     loadJobs()
     loadMaterials() // Load materials on mount so they're available for Quick Actions
   }, [])
+
+  // Handle jobId query parameter to open a specific job
+  useEffect(() => {
+    const jobId = searchParams?.get('jobId')
+    if (jobId && jobs.length > 0 && !selectedJob) {
+      const jobToOpen = jobs.find(j => j.id === jobId)
+      if (jobToOpen && !showJobDrawer) {
+        handleJobClick(jobToOpen)
+      }
+    }
+  }, [searchParams, jobs, selectedJob, showJobDrawer])
 
   // Close date range picker when clicking outside
   useEffect(() => {
@@ -206,12 +221,7 @@ export default function JobSuitePage() {
     
     // Status filter
     if (statusFilter !== 'all') {
-      if (statusFilter === 'paid') {
-        // Filter for paid jobs (regardless of status)
-        filtered = filtered.filter(job => job.paid)
-      } else {
-        filtered = filtered.filter(job => job.status === statusFilter)
-      }
+      filtered = filtered.filter(job => job.status === statusFilter)
     }
     
     // Date range filter
@@ -316,16 +326,16 @@ export default function JobSuitePage() {
 
   // Calculate priority counts
   const priorityCounts = {
-    awaitingApproval: jobs.filter(j => j.status === 'pending_approval').length,
+    awaitingApproval: jobs.filter(j => j.status === 'pending').length,
     inProgress: jobs.filter(j => j.status === 'approved').length,
-    outstandingBalance: jobs.filter(j => j.status === 'completed' && !j.paid).length,
-    paid: jobs.filter(j => j.paid).length,
+    outstandingBalance: jobs.filter(j => j.status === 'completed').length,
+    paid: jobs.filter(j => j.status === 'paid').length,
   }
 
   const handlePriorityClick = (filterType: string) => {
     switch (filterType) {
       case 'awaitingApproval':
-        setStatusFilter('pending_approval')
+        setStatusFilter('pending')
         break
       case 'inProgress':
         setStatusFilter('approved')
@@ -1013,14 +1023,13 @@ export default function JobSuitePage() {
                         <td className="px-4 py-4">
                           <span className={cn(
                             'px-2 py-1 rounded text-xs font-semibold',
-                            job.paid && 'bg-purple-500/20 text-purple-400',
-                            !job.paid && job.status === 'approved' && 'bg-green-500/20 text-green-400',
-                            !job.paid && job.status === 'pending_approval' && 'bg-yellow-500/20 text-yellow-400',
-                            !job.paid && job.status === 'in_progress' && 'bg-blue-500/20 text-blue-400',
-                            !job.paid && job.status === 'completed' && 'bg-gray-500/20 text-gray-400',
-                            !job.paid && job.status === 'draft' && 'bg-gray-500/20 text-gray-400',
+                            job.status === 'paid' && 'bg-purple-500/20 text-purple-400',
+                            job.status === 'approved' && 'bg-green-500/20 text-green-400',
+                            job.status === 'pending' && 'bg-yellow-500/20 text-yellow-400',
+                            job.status === 'completed' && 'bg-gray-500/20 text-gray-400',
+                            job.status === 'draft' && 'bg-gray-500/20 text-gray-400',
                           )}>
-                            {job.paid ? 'PAID' : job.status.replace('_', ' ').toUpperCase()}
+                            {getStatusDisplayLabel(job.status || 'pending')}
                           </span>
                         </td>
                         <td className="px-4 py-4">
@@ -1261,7 +1270,7 @@ export default function JobSuitePage() {
                       </Button>
                     </>
                   )}
-                  {selectedJob.status === 'in_progress' && (
+                  {selectedJob.status === 'approved' && (
                     <>
                       <Button variant="outline" className="w-full justify-start">
                         <BarChart3 className="h-4 w-4 mr-2" />
@@ -1269,7 +1278,7 @@ export default function JobSuitePage() {
                       </Button>
                     </>
                   )}
-                  {selectedJob.status === 'in_progress' && (
+                  {selectedJob.status === 'approved' && (
                     <>
                       <Button variant="outline" className="w-full justify-start">
                         <DollarSign className="h-4 w-4 mr-2" />
