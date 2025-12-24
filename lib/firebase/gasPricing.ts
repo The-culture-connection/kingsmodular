@@ -1,7 +1,120 @@
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore'
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore'
 import { db } from './config'
-import { getGasPricingConfig, GasPricingConfig } from './pricingConfig'
+import { getGasPricingConfig, GasPricingConfig, getMileagePayrollConfig, MileagePayrollConfig } from './pricingConfig'
 // Import will be done dynamically to avoid circular dependencies
+
+/**
+ * Calculate mileage payroll for a job item
+ * Formula: number of assigned employees * distanceMiles * ratePerMile
+ * Returns array of mileage payroll entries per employee
+ */
+export interface MileagePayrollEntry {
+  employeeId: string
+  employeeName: string
+  miles: number
+  ratePerMile: number
+  totalCost: number
+}
+
+export async function calculateMileagePayroll(
+  assignedEmployees: string[],
+  distanceMiles: number,
+  adminDb?: any
+): Promise<MileagePayrollEntry[]> {
+  const logPrefix = '🚗 [MILEAGE_PAYROLL]'
+  console.log(`${logPrefix} ========================================`)
+  console.log(`${logPrefix} Calculating mileage payroll`)
+  console.log(`${logPrefix} Assigned employees:`, assignedEmployees.length)
+  console.log(`${logPrefix} Distance:`, distanceMiles.toFixed(2), 'miles')
+  console.log(`${logPrefix} ========================================`)
+
+  if (!assignedEmployees || assignedEmployees.length === 0) {
+    console.log(`${logPrefix} No employees assigned, mileage payroll = 0`)
+    return []
+  }
+
+  if (distanceMiles <= 0) {
+    console.log(`${logPrefix} Distance is 0, mileage payroll = 0`)
+    return []
+  }
+
+  try {
+    // Get mileage payroll config
+    const config = await getMileagePayrollConfig()
+    if (!config.enabled) {
+      console.log(`${logPrefix} Mileage payroll is disabled`)
+      return []
+    }
+
+    const ratePerMile = config.ratePerMile
+    console.log(`${logPrefix} Rate per mile: $${ratePerMile.toFixed(2)}`)
+
+    // Get employee names from Firestore
+    const mileagePayroll: MileagePayrollEntry[] = []
+    
+    // Use admin DB if provided, otherwise use client DB
+    const dbToUse = adminDb || db
+
+    for (const employeeId of assignedEmployees) {
+      try {
+        // Try to get employee name from employees collection
+        const employeeRef = doc(dbToUse, 'employees', employeeId)
+        const employeeDoc = await getDoc(employeeRef)
+        
+        let employeeName = employeeId // Fallback to ID if name not found
+        if (employeeDoc.exists()) {
+          const employeeData = employeeDoc.data()
+          employeeName = employeeData.name || employeeData.displayName || employeeId
+        }
+
+        const totalCost = distanceMiles * ratePerMile
+        mileagePayroll.push({
+          employeeId,
+          employeeName,
+          miles: Math.round(distanceMiles * 100) / 100,
+          ratePerMile,
+          totalCost: Math.round(totalCost * 100) / 100,
+        })
+
+        console.log(`${logPrefix} Employee ${employeeName}:`, {
+          miles: distanceMiles.toFixed(2),
+          ratePerMile: `$${ratePerMile.toFixed(2)}`,
+          totalCost: `$${totalCost.toFixed(2)}`,
+        })
+      } catch (error: any) {
+        console.error(`${logPrefix} Error fetching employee ${employeeId}:`, error)
+        // Still add entry with employeeId as name
+        const totalCost = distanceMiles * ratePerMile
+        mileagePayroll.push({
+          employeeId,
+          employeeName: employeeId,
+          miles: Math.round(distanceMiles * 100) / 100,
+          ratePerMile,
+          totalCost: Math.round(totalCost * 100) / 100,
+        })
+      }
+    }
+
+    const totalMileagePayrollCost = mileagePayroll.reduce((sum, entry) => sum + entry.totalCost, 0)
+    console.log(`${logPrefix} ========================================`)
+    console.log(`${logPrefix} ✅ Mileage payroll calculated:`, {
+      entries: mileagePayroll.length,
+      totalCost: `$${totalMileagePayrollCost.toFixed(2)}`,
+    })
+    console.log(`${logPrefix} ========================================`)
+
+    return mileagePayroll
+  } catch (error: any) {
+    console.error(`${logPrefix} ========================================`)
+    console.error(`${logPrefix} ❌ Error calculating mileage payroll:`, error)
+    console.error(`${logPrefix} Error details:`, {
+      message: error.message,
+      stack: error.stack,
+    })
+    console.error(`${logPrefix} ========================================`)
+    return []
+  }
+}
 
 /**
  * Recursively remove undefined values from an object (Firestore doesn't allow undefined)
@@ -1017,7 +1130,7 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     const newCost = {
       ...existingCost,
       gasCost: roundedGasCost, // Always include, even if 0
-      totalCost: Math.round(((existingCost.materialsCost || 0) + (existingCost.payrollCost || 0) + roundedGasCost) * 100) / 100,
+      totalCost: Math.round(((existingCost.materialsCost || 0) + (existingCost.payrollCost || 0) + roundedGasCost + (existingCost.mileagePayrollCost || 0)) * 100) / 100,
     }
     
     console.log(`${logPrefix} Gas cost to save:`, {
@@ -1030,12 +1143,13 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
       materialsCost: `$${(existingCost.materialsCost || 0).toFixed(2)}`,
       payrollCost: `$${(existingCost.payrollCost || 0).toFixed(2)}`,
       gasCost: `$${newCost.gasCost.toFixed(2)}`,
+      mileagePayrollCost: `$${newCost.mileagePayrollCost.toFixed(2)}`,
       totalCost: `$${newCost.totalCost.toFixed(2)}`,
       previousTotalCost: `$${(existingCost.totalCost || 0).toFixed(2)}`,
     })
     
-    // Step 8: Prepare update payload
-    console.log(`${logPrefix} Step 8: Preparing Firestore update...`)
+    // Step 9: Prepare update payload
+    console.log(`${logPrefix} Step 9: Preparing Firestore update...`)
     const updatePayload: any = {
       Cost: newCost,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1061,7 +1175,7 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     await jobRef.update(cleanedPayload)
     
     console.log(`${logPrefix} ========================================`)
-    console.log(`${logPrefix} ✅ Gas calculation and update completed successfully!`)
+    console.log(`${logPrefix} ✅ Gas calculation completed successfully!`)
     console.log(`${logPrefix} Job ID: ${jobId}`)
     console.log(`${logPrefix} Total gas cost: $${totalGasCost.toFixed(2)}`)
     console.log(`${logPrefix} Total customer surcharge: $${totalGasSurcharge.toFixed(2)}`)

@@ -15,6 +15,19 @@ export interface GasPricingConfig {
   updatedAt?: any
 }
 
+export interface MileagePayrollConfig {
+  enabled: boolean
+  ratePerMile: number // Default: 0.50
+  updatedAt?: any
+}
+
+const MILEAGE_PAYROLL_CONFIG_DOC_ID = 'mileagePayroll'
+
+const DEFAULT_MILEAGE_PAYROLL_CONFIG: MileagePayrollConfig = {
+  enabled: true,
+  ratePerMile: 0.50,
+}
+
 const PRICING_CONFIG_COLLECTION = 'pricingConfig'
 const GAS_CONFIG_DOC_ID = 'gas'
 
@@ -67,6 +80,45 @@ export async function updateGasPricingConfig(config: Partial<GasPricingConfig>):
   } catch (error: any) {
     console.error('Error updating gas pricing config:', error)
     throw new Error(`Failed to update gas pricing config: ${error.message}`)
+  }
+}
+
+/**
+ * Get mileage payroll configuration
+ */
+export async function getMileagePayrollConfig(): Promise<MileagePayrollConfig> {
+  try {
+    const configRef = doc(db, PRICING_CONFIG_COLLECTION, MILEAGE_PAYROLL_CONFIG_DOC_ID)
+    const configDoc = await getDoc(configRef)
+    
+    if (configDoc.exists()) {
+      return configDoc.data() as MileagePayrollConfig
+    }
+    
+    // Return default if not exists
+    return DEFAULT_MILEAGE_PAYROLL_CONFIG
+  } catch (error: any) {
+    console.error('Error fetching mileage payroll config:', error)
+    return DEFAULT_MILEAGE_PAYROLL_CONFIG
+  }
+}
+
+/**
+ * Update mileage payroll configuration
+ */
+export async function updateMileagePayrollConfig(config: Partial<MileagePayrollConfig>): Promise<void> {
+  try {
+    const configRef = doc(db, PRICING_CONFIG_COLLECTION, MILEAGE_PAYROLL_CONFIG_DOC_ID)
+    const currentConfig = await getMileagePayrollConfig()
+    
+    await setDoc(configRef, {
+      ...currentConfig,
+      ...config,
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+  } catch (error: any) {
+    console.error('Error updating mileage payroll config:', error)
+    throw new Error(`Failed to update mileage payroll config: ${error.message}`)
   }
 }
 

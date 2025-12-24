@@ -36,6 +36,7 @@ export interface JobAnalyticsRow {
   costGasAllocated: number // Allocated from parent Cost.gasCost
   costMaterialsAllocated: number // Allocated from parent Cost.materialsCost
   costPayrollAllocated: number // Allocated from parent Cost.payrollCost
+  costMileagePayrollAllocated: number // Allocated from parent Cost.mileagePayrollCost
   profit: number // revenue - costAllocatedTotal
   marginPct: number // (profit / revenue) * 100
   
@@ -91,12 +92,14 @@ function allocateCosts(
     gasCost: number
     materialsCost: number
     payrollCost: number
+    mileagePayrollCost: number
   }
 ): {
   costAllocatedTotal: number
   costGasAllocated: number
   costMaterialsAllocated: number
   costPayrollAllocated: number
+  costMileagePayrollAllocated: number
 } {
   if (totalRevenue === 0) {
     // If no revenue, allocate equally (or return 0)
@@ -105,16 +108,18 @@ function allocateCosts(
       costGasAllocated: 0,
       costMaterialsAllocated: 0,
       costPayrollAllocated: 0,
+      costMileagePayrollAllocated: 0,
     }
   }
-  
+
   const revenueShare = jobRevenue / totalRevenue
-  
+
   return {
     costAllocatedTotal: parentCosts.totalCost * revenueShare,
     costGasAllocated: parentCosts.gasCost * revenueShare,
     costMaterialsAllocated: parentCosts.materialsCost * revenueShare,
     costPayrollAllocated: parentCosts.payrollCost * revenueShare,
+    costMileagePayrollAllocated: parentCosts.mileagePayrollCost * revenueShare,
   }
 }
 
@@ -146,12 +151,14 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
   const parentGasCost = costData.gasCost || 0
   const parentMaterialsCost = costData.materialsCost || 0
   const parentPayrollCost = costData.payrollCost || 0
+  const parentMileagePayrollCost = costData.mileagePayrollCost || 0
   
   console.log(`${logPrefix}   Cost data:`, {
     totalCost: parentCostTotal,
     gasCost: parentGasCost,
     materialsCost: parentMaterialsCost,
     payrollCost: parentPayrollCost,
+    mileagePayrollCost: parentMileagePayrollCost,
   })
   
   // Extract jobs array
@@ -187,24 +194,26 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
     const revenue = job.totalPrice ?? job.price ?? 0
     console.log(`${logPrefix}     Revenue: ${revenue}`)
     
-    // Allocate costs proportionally
-    const allocated = allocateCosts(
-      revenue,
-      parentRevenueTotal,
-      {
-        totalCost: parentCostTotal,
-        gasCost: parentGasCost,
-        materialsCost: parentMaterialsCost,
-        payrollCost: parentPayrollCost,
-      }
-    )
+            // Allocate costs proportionally
+            const allocated = allocateCosts(
+              revenue,
+              parentRevenueTotal,
+              {
+                totalCost: parentCostTotal,
+                gasCost: parentGasCost,
+                materialsCost: parentMaterialsCost,
+                payrollCost: parentPayrollCost,
+                mileagePayrollCost: parentMileagePayrollCost,
+              }
+            )
     
-    console.log(`${logPrefix}     Allocated costs:`, {
-      total: allocated.costAllocatedTotal,
-      gas: allocated.costGasAllocated,
-      materials: allocated.costMaterialsAllocated,
-      payroll: allocated.costPayrollAllocated,
-    })
+            console.log(`${logPrefix}     Allocated costs:`, {
+              total: allocated.costAllocatedTotal,
+              gas: allocated.costGasAllocated,
+              materials: allocated.costMaterialsAllocated,
+              payroll: allocated.costPayrollAllocated,
+              mileagePayroll: allocated.costMileagePayrollAllocated,
+            })
     
     // Calculate profit and margin
     const profit = revenue - allocated.costAllocatedTotal
@@ -285,6 +294,7 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
       costGasAllocated: allocated.costGasAllocated,
       costMaterialsAllocated: allocated.costMaterialsAllocated,
       costPayrollAllocated: allocated.costPayrollAllocated,
+      costMileagePayrollAllocated: allocated.costMileagePayrollAllocated,
       profit,
       marginPct,
       
@@ -353,6 +363,7 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
       costGasAllocated: allocated.costGasAllocated,
       costMaterialsAllocated: allocated.costMaterialsAllocated,
       costPayrollAllocated: allocated.costPayrollAllocated,
+      costMileagePayrollAllocated: allocated.costMileagePayrollAllocated,
       profit,
       marginPct,
       

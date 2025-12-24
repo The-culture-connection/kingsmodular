@@ -206,13 +206,14 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
   const materialsCost = costData.materialsCost || (estimate as any).materialsCost || 0
   const payrollCost = costData.payrollCost || (estimate as any).payrollCost || 0
   const gasCost = costData.gasCost || (estimate as any).gasCost || 0
+  const mileagePayrollCost = costData.mileagePayrollCost || (estimate as any).mileagePayrollCost || 0
   const materials = costData.materials || (estimate as any).materials || []
   const payroll = costData.payroll || (estimate as any).payroll || []
   const totalDays = (estimate as any).totalDays || 0
   const photos = (estimate as any).photos || []
   
-  // Calculate cost and profit with actual materials, payroll, and gas (always use actual, even if 0)
-  const actualCost = materialsCost + payrollCost + gasCost
+  // Calculate cost and profit with actual materials, payroll, gas, and mileage payroll (always use actual, even if 0)
+  const actualCost = materialsCost + payrollCost + gasCost + mileagePayrollCost
   const actualProfit = revenue - actualCost
 
   console.log('🟢 [TRANSFORM_ESTIMATE] ========================================')
@@ -254,9 +255,10 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
     materialsCost,
     payrollCost,
     gasCost,
+    mileagePayrollCost,
     actualCost,
     actualProfit,
-    formula: `${materialsCost} + ${payrollCost} + ${gasCost} = ${actualCost}`,
+    formula: `${materialsCost} + ${payrollCost} + ${gasCost} + ${mileagePayrollCost} = ${actualCost}`,
     note: gasCost === 0 ? '⚠️ Gas cost is 0 - may need gas calculation' : '✅ Gas cost included',
   })
   console.log('🟢 [TRANSFORM_ESTIMATE] ========================================')
@@ -297,6 +299,7 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
       payrollCost,
       payroll,
       gasCost,
+      mileagePayrollCost,
       totalCost: actualCost,
     },
   }
@@ -427,6 +430,7 @@ export async function updateJobData(jobId: string, updates: {
     payrollCost: number
     payroll: { employeeId: string; employeeName: string; hourlyRate: number; hours: number; totalCost: number }[]
     gasCost?: number
+    mileagePayrollCost?: number
     totalCost: number
   }
 }): Promise<void> {

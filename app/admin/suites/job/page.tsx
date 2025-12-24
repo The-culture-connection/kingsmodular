@@ -103,6 +103,11 @@ export default function JobSuitePage() {
   const [totalPriceValue, setTotalPriceValue] = useState<string>('')
   const [isSavingTotalPrice, setIsSavingTotalPrice] = useState(false)
   
+  // Expense editing
+  const [editingExpense, setEditingExpense] = useState<'materials' | 'payroll' | 'gas' | 'mileagePayroll' | null>(null)
+  const [expenseValue, setExpenseValue] = useState<string>('')
+  const [isSavingExpense, setIsSavingExpense] = useState(false)
+  
   // Modals
   const [showEditStatusModal, setShowEditStatusModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -424,6 +429,68 @@ export default function JobSuitePage() {
     setIsEditingTotalPrice(false)
   }
 
+  const handleSaveExpense = async () => {
+    if (!selectedJob || !editingExpense) return
+
+    const expenseValueNum = parseFloat(expenseValue)
+    if (isNaN(expenseValueNum) || expenseValueNum < 0) {
+      showToast('Please enter a valid expense amount', 'error')
+      return
+    }
+
+    setIsSavingExpense(true)
+    try {
+      const costData = (selectedJob as any).Cost || {}
+      const expenseKey = editingExpense === 'materials' ? 'materialsCost' :
+                        editingExpense === 'payroll' ? 'payrollCost' :
+                        editingExpense === 'gas' ? 'gasCost' :
+                        'mileagePayrollCost'
+      
+      const newCost = {
+        ...costData,
+        [expenseKey]: expenseValueNum,
+        totalCost: Math.round((
+          (editingExpense === 'materials' ? expenseValueNum : (costData.materialsCost || 0)) +
+          (editingExpense === 'payroll' ? expenseValueNum : (costData.payrollCost || 0)) +
+          (editingExpense === 'gas' ? expenseValueNum : (costData.gasCost || 0)) +
+          (editingExpense === 'mileagePayroll' ? expenseValueNum : (costData.mileagePayrollCost || 0))
+        ) * 100) / 100,
+      }
+
+      await updateJobData(selectedJob.id, {
+        Cost: newCost,
+        [expenseKey]: expenseValueNum, // Also update top-level for backward compatibility
+      })
+
+      showToast(`${editingExpense.charAt(0).toUpperCase() + editingExpense.slice(1)} cost updated successfully`, 'success')
+      setEditingExpense(null)
+      await loadJobs() // Reload all jobs to reflect changes in table
+      handleJobClick(selectedJob) // Re-open the drawer with fresh data
+    } catch (error: any) {
+      console.error('Error saving expense:', error)
+      showToast(error.message || 'Failed to save expense', 'error')
+    } finally {
+      setIsSavingExpense(false)
+    }
+  }
+
+  const handleCancelExpenseEdit = () => {
+    setEditingExpense(null)
+    setExpenseValue('')
+  }
+
+  const handleStartExpenseEdit = (expenseType: 'materials' | 'payroll' | 'gas' | 'mileagePayroll') => {
+    if (!selectedJob) return
+    const costData = (selectedJob as any).Cost || {}
+    const expenseKey = expenseType === 'materials' ? 'materialsCost' :
+                      expenseType === 'payroll' ? 'payrollCost' :
+                      expenseType === 'gas' ? 'gasCost' :
+                      'mileagePayrollCost'
+    const currentValue = costData[expenseKey] ?? (selectedJob as any)[expenseKey] ?? 0
+    setExpenseValue(currentValue.toString())
+    setEditingExpense(expenseType)
+  }
+
   const handleViewJob = (job: TransformedJob) => {
     handleJobClick(job)
   }
@@ -633,13 +700,52 @@ export default function JobSuitePage() {
       })
       const payrollCost = payrollWithDetails.reduce((sum, emp) => sum + emp.totalCost, 0)
 
+      // Calculate mileage payroll for each job item
+      console.log('🚗 [MILEAGE_PAYROLL] Calculating mileage payroll when employees are saved...')
+      const jobs = (selectedJob as any).jobs || []
+      const updatedJobs = []
+      let totalMileagePayrollCost = 0
+
+      for (let i = 0; i < jobs.length; i++) {
+        const jobItem = jobs[i]
+        const gasCalc = jobItem.gas
+        const distanceMiles = gasCalc?.distanceMiles || 0
+
+        if (distanceMiles > 0 && selectedEmployees.length > 0) {
+          // Import and use the client-side mileage payroll calculation function
+          const { calculateMileagePayroll } = await import('@/lib/firebase/mileagePayroll')
+          const mileagePayroll = await calculateMileagePayroll(selectedEmployees, distanceMiles)
+          const itemMileageCost = mileagePayroll.reduce((sum: number, entry: any) => sum + entry.totalCost, 0)
+          totalMileagePayrollCost += itemMileageCost
+          
+          updatedJobs.push({
+            ...jobItem,
+            mileagePayroll: mileagePayroll.length > 0 ? mileagePayroll : null,
+          })
+          
+          console.log('🚗 [MILEAGE_PAYROLL] Job item', i + 1, ':', {
+            employees: mileagePayroll.length,
+            distanceMiles: distanceMiles.toFixed(2),
+            cost: `$${itemMileageCost.toFixed(2)}`,
+          })
+        } else {
+          updatedJobs.push({
+            ...jobItem,
+            mileagePayroll: jobItem.mileagePayroll || null, // Keep existing if no calculation
+          })
+        }
+      }
+
+      console.log('🚗 [MILEAGE_PAYROLL] Total mileage payroll cost:', `$${totalMileagePayrollCost.toFixed(2)}`)
+
       const existingCost = (selectedJob as any).Cost || {}
       const newCost = {
         ...existingCost,
         hoursPerDay, // Save hours per day in Cost object
         payrollCost,
         payroll: payrollWithDetails,
-        totalCost: (existingCost.materialsCost || 0) + payrollCost
+        mileagePayrollCost: Math.round(totalMileagePayrollCost * 100) / 100,
+        totalCost: Math.round(((existingCost.materialsCost || 0) + payrollCost + (existingCost.gasCost || 0) + totalMileagePayrollCost) * 100) / 100
       }
 
       await updateJobData(selectedJob.id, {
@@ -648,8 +754,9 @@ export default function JobSuitePage() {
         hoursPerDay, // Save hours per day at top level too
         payrollCost,
         payroll: payrollWithDetails,
+        jobs: updatedJobs, // Update jobs with mileage payroll data
         Cost: newCost,
-      })
+      } as any) // Type assertion needed for mileagePayrollCost
       showToast('Employees and payroll saved successfully', 'success')
       
       // Reload jobs to get fresh data from Firestore
@@ -786,7 +893,8 @@ export default function JobSuitePage() {
     const materialsCost = costData.materialsCost ?? selectedJob.materialsCost ?? 0
     const payrollCost = costData.payrollCost ?? selectedJob.payrollCost ?? 0
     const gasCost = costData.gasCost ?? (selectedJob as any).gasCost ?? 0
-    const totalCost = costData.totalCost ?? (materialsCost + payrollCost + gasCost)
+    const mileagePayrollCost = costData.mileagePayrollCost ?? (selectedJob as any).mileagePayrollCost ?? 0
+    const totalCost = costData.totalCost ?? (materialsCost + payrollCost + gasCost + mileagePayrollCost)
     // Use totalPrice (includes surge surcharge) instead of revenue field
     const revenue = (selectedJob as any).totalPrice || selectedJob.revenue || 0
     const profit = revenue - totalCost
@@ -797,6 +905,7 @@ export default function JobSuitePage() {
       materialsCost,
       payrollCost,
       gasCost,
+      mileagePayrollCost,
       totalCost,
       profit,
       margin,
@@ -813,6 +922,7 @@ export default function JobSuitePage() {
       materialsCost,
       payrollCost,
       gasCost,
+      mileagePayrollCost,
       totalCost,
       profit,
       margin,
@@ -1116,7 +1226,8 @@ export default function JobSuitePage() {
                               // Note: gasCost might be 0 if calculation failed or gas pricing is disabled
                               
                               // Always calculate actual cost: materials + payroll + gas (no fallback to estimated)
-                              const actualCost = materialsCost + payrollCost + gasCost
+                              const mileagePayrollCost = costData.mileagePayrollCost ?? (job as any).mileagePayrollCost ?? 0
+                              const actualCost = materialsCost + payrollCost + gasCost + mileagePayrollCost
                               
                               // Calculate profit: revenue - actual cost
                               // Use totalPrice (includes surge surcharge) instead of revenue field
@@ -1128,9 +1239,10 @@ export default function JobSuitePage() {
                                 materialsCost,
                                 payrollCost,
                                 gasCost,
+                                mileagePayrollCost,
                                 actualCost,
                                 profit,
-                                formula: `${materialsCost} + ${payrollCost} + ${gasCost} = ${actualCost}`,
+                                formula: `${materialsCost} + ${payrollCost} + ${gasCost} + ${mileagePayrollCost} = ${actualCost}`,
                               })
                               
                               console.log(`${logPrefix} Step 6: Full job object inspection:`, {
@@ -1140,12 +1252,14 @@ export default function JobSuitePage() {
                                   materialsCost: costData.materialsCost,
                                   payrollCost: costData.payrollCost,
                                   gasCost: costData.gasCost,
+                                  mileagePayrollCost: costData.mileagePayrollCost,
                                   totalCost: costData.totalCost,
                                 },
                                 topLevelFields: {
                                   materialsCost: (job as any).materialsCost,
                                   payrollCost: (job as any).payrollCost,
                                   gasCost: (job as any).gasCost,
+                                  mileagePayrollCost: (job as any).mileagePayrollCost,
                                 },
                                 hasJobsArray: !!(job as any).jobs,
                                 jobsArrayLength: (job as any).jobs?.length || 0,
@@ -1733,7 +1847,8 @@ export default function JobSuitePage() {
                         const payroll = costData.payroll || selectedJob.payroll || []
                         const payrollCost = costData.payrollCost ?? selectedJob.payrollCost ?? 0
                         const gasCost = costData.gasCost ?? (selectedJob as any).gasCost ?? 0
-                        const totalCost = costData.totalCost ?? (materialsCost + payrollCost + gasCost)
+                        const mileagePayrollCost = costData.mileagePayrollCost ?? (selectedJob as any).mileagePayrollCost ?? 0
+                        const totalCost = costData.totalCost ?? (materialsCost + payrollCost + gasCost + mileagePayrollCost)
                         
                         console.log('📊 [FINANCIALS TAB] Cost breakdown:', {
                           materialsCost,
@@ -1767,7 +1882,46 @@ export default function JobSuitePage() {
                             ) : (
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-foreground/70">Materials Cost</span>
-                                <span className="text-foreground/70">${materialsCost.toLocaleString()}</span>
+                                {editingExpense === 'materials' ? (
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={expenseValue}
+                                      onChange={(e) => setExpenseValue(e.target.value)}
+                                      className="w-24 h-8 text-sm"
+                                    />
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={handleSaveExpense}
+                                      disabled={isSavingExpense}
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={handleCancelExpenseEdit}
+                                      disabled={isSavingExpense}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-foreground/70">${materialsCost.toLocaleString()}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleStartExpenseEdit('materials')}
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             )}
                             
@@ -1786,13 +1940,91 @@ export default function JobSuitePage() {
                                 </div>
                                 <div className="flex justify-between items-center mt-2 pt-2 border-t border-accent/10">
                                   <span className="text-foreground/70 font-semibold">Total Payroll Cost</span>
-                                  <span className="text-foreground font-semibold">${payrollCost.toLocaleString()}</span>
+                                  {editingExpense === 'payroll' ? (
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={expenseValue}
+                                        onChange={(e) => setExpenseValue(e.target.value)}
+                                        className="w-24 h-8 text-sm"
+                                      />
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={handleSaveExpense}
+                                        disabled={isSavingExpense}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleCancelExpenseEdit}
+                                        disabled={isSavingExpense}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-foreground font-semibold">${payrollCost.toLocaleString()}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleStartExpenseEdit('payroll')}
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             ) : (
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-foreground/70">Payroll Cost</span>
-                                <span className="text-foreground/70">${payrollCost.toLocaleString()}</span>
+                                {editingExpense === 'payroll' ? (
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={expenseValue}
+                                      onChange={(e) => setExpenseValue(e.target.value)}
+                                      className="w-24 h-8 text-sm"
+                                    />
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={handleSaveExpense}
+                                      disabled={isSavingExpense}
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={handleCancelExpenseEdit}
+                                      disabled={isSavingExpense}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-foreground/70">${payrollCost.toLocaleString()}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleStartExpenseEdit('payroll')}
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             )}
                             
@@ -1800,7 +2032,46 @@ export default function JobSuitePage() {
                               <>
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-foreground/70">Gas Cost</span>
-                                <span className="text-foreground/70">${gasCost.toLocaleString()}</span>
+                                {editingExpense === 'gas' ? (
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={expenseValue}
+                                      onChange={(e) => setExpenseValue(e.target.value)}
+                                      className="w-24 h-8 text-sm"
+                                    />
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={handleSaveExpense}
+                                      disabled={isSavingExpense}
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={handleCancelExpenseEdit}
+                                      disabled={isSavingExpense}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-foreground/70">${gasCost.toLocaleString()}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleStartExpenseEdit('gas')}
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                                 {/* Check if any job item has surge pricing applied */}
                                 {(() => {
@@ -1833,6 +2104,124 @@ export default function JobSuitePage() {
                                 })()}
                               </>
                             )}
+                            
+                            {(() => {
+                              const jobs = (selectedJob as any).jobs || []
+                              const mileagePayrollEntries: any[] = []
+                              jobs.forEach((jobItem: any) => {
+                                if (jobItem.mileagePayroll && Array.isArray(jobItem.mileagePayroll)) {
+                                  mileagePayrollEntries.push(...jobItem.mileagePayroll)
+                                }
+                              })
+                              
+                              if (mileagePayrollEntries.length > 0) {
+                                return (
+                                  <div className="mb-4 mt-4">
+                                    <div className="text-sm font-semibold text-foreground mb-2">Mileage Payroll</div>
+                                    <div className="space-y-2 mb-2">
+                                      {mileagePayrollEntries.map((entry: any, index: number) => (
+                                        <div key={index} className="flex justify-between items-center text-sm bg-foreground/5 p-2 rounded">
+                                          <span className="text-foreground/70">
+                                            {entry.employeeName} ({entry.miles.toFixed(2)} mi × ${entry.ratePerMile?.toLocaleString() || 0}/mi)
+                                          </span>
+                                          <span className="text-foreground font-medium">${entry.totalCost?.toLocaleString() || 0}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-accent/10">
+                                      <span className="text-foreground/70 font-semibold">Total Mileage Payroll Cost</span>
+                                      {editingExpense === 'mileagePayroll' ? (
+                                        <div className="flex items-center gap-2">
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={expenseValue}
+                                            onChange={(e) => setExpenseValue(e.target.value)}
+                                            className="w-24 h-8 text-sm"
+                                          />
+                                          <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={handleSaveExpense}
+                                            disabled={isSavingExpense}
+                                          >
+                                            Save
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCancelExpenseEdit}
+                                            disabled={isSavingExpense}
+                                          >
+                                            Cancel
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-foreground font-semibold">${selectedJobFinancials.mileagePayrollCost.toLocaleString()}</span>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleStartExpenseEdit('mileagePayroll')}
+                                            className="h-6 w-6 p-0"
+                                          >
+                                            <Edit className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              } else if (selectedJobFinancials.mileagePayrollCost > 0) {
+                                return (
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="text-foreground/70">Mileage Payroll Cost</span>
+                                    {editingExpense === 'mileagePayroll' ? (
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={expenseValue}
+                                          onChange={(e) => setExpenseValue(e.target.value)}
+                                          className="w-24 h-8 text-sm"
+                                        />
+                                        <Button
+                                          variant="primary"
+                                          size="sm"
+                                          onClick={handleSaveExpense}
+                                          disabled={isSavingExpense}
+                                        >
+                                          Save
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={handleCancelExpenseEdit}
+                                          disabled={isSavingExpense}
+                                        >
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-foreground/70">${selectedJobFinancials.mileagePayrollCost.toLocaleString()}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleStartExpenseEdit('mileagePayroll')}
+                                          className="h-6 w-6 p-0"
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              }
+                              return null
+                            })()}
                             
                             <div className="border-t border-accent/20 pt-2 mt-2">
                               <div className="flex justify-between items-center">
