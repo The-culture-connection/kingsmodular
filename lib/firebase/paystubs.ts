@@ -225,8 +225,12 @@ export async function getPaystubs(employeeId?: string): Promise<Paystub[]> {
     
     // Sort client-side by payPeriodStart descending
     return paystubs.sort((a, b) => {
-      const aDate = a.payPeriodStart instanceof Date ? a.payPeriodStart : new Date(a.payPeriodStart)
-      const bDate = b.payPeriodStart instanceof Date ? b.payPeriodStart : new Date(b.payPeriodStart)
+      const aDate = a.payPeriodStart instanceof Date 
+        ? a.payPeriodStart 
+        : (a.payPeriodStart?.toDate ? a.payPeriodStart.toDate() : new Date(a.payPeriodStart as any))
+      const bDate = b.payPeriodStart instanceof Date 
+        ? b.payPeriodStart 
+        : (b.payPeriodStart?.toDate ? b.payPeriodStart.toDate() : new Date(b.payPeriodStart as any))
       return bDate.getTime() - aDate.getTime()
     })
   } catch (error: any) {

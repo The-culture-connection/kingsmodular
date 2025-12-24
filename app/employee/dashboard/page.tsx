@@ -83,12 +83,21 @@ export default function EmployeeDashboardPage() {
     }
   }
 
+  const toDate = (value: Date | string | number | any): Date => {
+    if (value instanceof Date) {
+      return value
+    } else if (value && typeof value === 'object' && 'toDate' in value) {
+      // Firestore Timestamp
+      return (value as any).toDate()
+    } else {
+      return new Date(value as string | number)
+    }
+  }
+
   const updateCurrentHours = () => {
     if (!activeTimeEntry) return
     
-    const clockInTime = activeTimeEntry.clockIn instanceof Date 
-      ? activeTimeEntry.clockIn 
-      : new Date(activeTimeEntry.clockIn)
+    const clockInTime = toDate(activeTimeEntry.clockIn)
     const now = new Date()
     const diffMs = now.getTime() - clockInTime.getTime()
     const hours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100
@@ -178,7 +187,7 @@ export default function EmployeeDashboardPage() {
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground mb-2">
-          Welcome back, {user?.name || 'Employee'}
+          Welcome back, {(user as any)?.name || user?.email?.split('@')[0] || 'Employee'}
         </h1>
         <p className="text-foreground/70">Manage your time, PTO, and view paystubs</p>
       </div>
@@ -215,9 +224,7 @@ export default function EmployeeDashboardPage() {
             </div>
             {activeTimeEntry && (
               <p className="text-xs text-foreground/50">
-                Clocked in at {activeTimeEntry.clockIn instanceof Date 
-                  ? activeTimeEntry.clockIn.toLocaleTimeString()
-                  : new Date(activeTimeEntry.clockIn).toLocaleTimeString()}
+                Clocked in at {toDate(activeTimeEntry.clockIn).toLocaleTimeString()}
               </p>
             )}
           </div>
@@ -313,13 +320,9 @@ export default function EmployeeDashboardPage() {
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {request.startDate instanceof Date
-                        ? request.startDate.toLocaleDateString()
-                        : new Date(request.startDate).toLocaleDateString()}{' '}
+                      {toDate(request.startDate).toLocaleDateString()}{' '}
                       -{' '}
-                      {request.endDate instanceof Date
-                        ? request.endDate.toLocaleDateString()
-                        : new Date(request.endDate).toLocaleDateString()}
+                      {toDate(request.endDate).toLocaleDateString()}
                     </p>
                     <p className="text-xs text-foreground/70 capitalize">{request.type}</p>
                   </div>
@@ -354,13 +357,9 @@ export default function EmployeeDashboardPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        {paystub.payPeriodStart instanceof Date
-                          ? paystub.payPeriodStart.toLocaleDateString()
-                          : new Date(paystub.payPeriodStart).toLocaleDateString()}{' '}
+                        {toDate(paystub.payPeriodStart).toLocaleDateString()}{' '}
                         -{' '}
-                        {paystub.payPeriodEnd instanceof Date
-                          ? paystub.payPeriodEnd.toLocaleDateString()
-                          : new Date(paystub.payPeriodEnd).toLocaleDateString()}
+                        {toDate(paystub.payPeriodEnd).toLocaleDateString()}
                       </p>
                       <p className="text-xs text-foreground/70 capitalize">{paystub.status}</p>
                     </div>

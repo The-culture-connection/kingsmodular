@@ -84,8 +84,12 @@ export async function getPTORequests(employeeId?: string): Promise<PTORequest[]>
     
     // Sort client-side by requestedAt descending
     return requests.sort((a, b) => {
-      const aDate = a.requestedAt instanceof Date ? a.requestedAt : new Date(a.requestedAt)
-      const bDate = b.requestedAt instanceof Date ? b.requestedAt : new Date(b.requestedAt)
+      const aDate = a.requestedAt instanceof Date 
+        ? a.requestedAt 
+        : (a.requestedAt?.toDate ? a.requestedAt.toDate() : new Date(a.requestedAt as any))
+      const bDate = b.requestedAt instanceof Date 
+        ? b.requestedAt 
+        : (b.requestedAt?.toDate ? b.requestedAt.toDate() : new Date(b.requestedAt as any))
       return bDate.getTime() - aDate.getTime()
     })
   } catch (error: any) {
@@ -119,8 +123,12 @@ export async function getPendingPTORequests(): Promise<PTORequest[]> {
     
     // Sort client-side by requestedAt ascending
     return requests.sort((a, b) => {
-      const aDate = a.requestedAt instanceof Date ? a.requestedAt : new Date(a.requestedAt)
-      const bDate = b.requestedAt instanceof Date ? b.requestedAt : new Date(b.requestedAt)
+      const aDate = a.requestedAt instanceof Date 
+        ? a.requestedAt 
+        : (a.requestedAt?.toDate ? a.requestedAt.toDate() : new Date(a.requestedAt as any))
+      const bDate = b.requestedAt instanceof Date 
+        ? b.requestedAt 
+        : (b.requestedAt?.toDate ? b.requestedAt.toDate() : new Date(b.requestedAt as any))
       return aDate.getTime() - bDate.getTime()
     })
   } catch (error: any) {

@@ -64,6 +64,8 @@ export interface TransformedJob {
     materials: { materialId: string; name: string; quantity: number; unitCost: number; totalCost: number }[]
     payrollCost: number
     payroll: { employeeId: string; employeeName: string; hourlyRate: number; hours: number; totalCost: number }[]
+    gasCost?: number
+    mileagePayrollCost?: number
     totalCost: number
   }
 }
@@ -180,7 +182,7 @@ export function transformEstimateToJob(estimate: Estimate): TransformedJob {
   const revenue = estimate.totalPrice || 0
   
   // Determine boolean flags based on status
-  const approved = status === 'approved' || status === 'in_progress' || status === 'completed'
+  const approved = status === 'approved' || status === 'completed'
   const paid = status === 'completed' // or check for a 'paid' status/field
   
   // Extract site from location (take first part before comma)

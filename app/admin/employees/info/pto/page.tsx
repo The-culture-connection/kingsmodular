@@ -155,12 +155,19 @@ export default function EmployeePTOPage() {
       ) : (
         <div className="space-y-4">
           {requestsToShow.map((request) => {
-            const startDate = request.startDate instanceof Date 
-              ? request.startDate 
-              : new Date(request.startDate)
-            const endDate = request.endDate instanceof Date 
-              ? request.endDate 
-              : new Date(request.endDate)
+            const toDate = (value: Date | string | number | any): Date => {
+              if (value instanceof Date) {
+                return value
+              } else if (value && typeof value === 'object' && 'toDate' in value) {
+                // Firestore Timestamp
+                return (value as any).toDate()
+              } else {
+                return new Date(value as string | number)
+              }
+            }
+            
+            const startDate = toDate(request.startDate)
+            const endDate = toDate(request.endDate)
             const days = calculateDays(startDate, endDate)
             const isPending = request.status === 'pending'
 
@@ -216,9 +223,7 @@ export default function EmployeePTOPage() {
                   <div className="mb-4 p-3 bg-foreground/5 rounded-lg">
                     <p className="text-xs text-foreground/70 mb-1">
                       Reviewed by {getEmployeeName(request.reviewedBy)} on{' '}
-                      {request.reviewedAt instanceof Date
-                        ? request.reviewedAt.toLocaleDateString()
-                        : new Date(request.reviewedAt).toLocaleDateString()}
+                      {request.reviewedAt ? toDate(request.reviewedAt).toLocaleDateString() : ''}
                     </p>
                     {request.reviewNotes && (
                       <p className="text-sm text-foreground/70">{request.reviewNotes}</p>

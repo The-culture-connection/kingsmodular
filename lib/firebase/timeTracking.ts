@@ -129,8 +129,12 @@ export async function getActiveTimeEntry(employeeId: string): Promise<TimeEntry 
       })
       .filter(entry => !entry.clockOut) // Filter for entries without clockOut
       .sort((a, b) => {
-        const aDate = a.clockIn instanceof Date ? a.clockIn : new Date(a.clockIn)
-        const bDate = b.clockIn instanceof Date ? b.clockIn : new Date(b.clockIn)
+        const aDate = a.clockIn instanceof Date 
+          ? a.clockIn 
+          : (a.clockIn?.toDate ? a.clockIn.toDate() : new Date(a.clockIn as any))
+        const bDate = b.clockIn instanceof Date 
+          ? b.clockIn 
+          : (b.clockIn?.toDate ? b.clockIn.toDate() : new Date(b.clockIn as any))
         return bDate.getTime() - aDate.getTime() // Most recent first
       })
     
@@ -176,12 +180,16 @@ export async function getTimeEntries(
       .filter(entry => {
         const entryTime = entry.clockIn instanceof Date 
           ? entry.clockIn.getTime() 
-          : new Date(entry.clockIn).getTime()
+          : (entry.clockIn?.toDate ? entry.clockIn.toDate().getTime() : new Date(entry.clockIn as any).getTime())
         return entryTime >= startTimestamp && entryTime <= endTimestamp
       })
       .sort((a, b) => {
-        const aTime = a.clockIn instanceof Date ? a.clockIn.getTime() : new Date(a.clockIn).getTime()
-        const bTime = b.clockIn instanceof Date ? b.clockIn.getTime() : new Date(b.clockIn).getTime()
+        const aTime = a.clockIn instanceof Date 
+          ? a.clockIn.getTime() 
+          : (a.clockIn?.toDate ? a.clockIn.toDate().getTime() : new Date(a.clockIn as any).getTime())
+        const bTime = b.clockIn instanceof Date 
+          ? b.clockIn.getTime() 
+          : (b.clockIn?.toDate ? b.clockIn.toDate().getTime() : new Date(b.clockIn as any).getTime())
         return bTime - aTime // Most recent first
       })
   } catch (error: any) {
@@ -199,7 +207,9 @@ export function calculateWeeklyHours(entries: TimeEntry[]): WeeklyHours[] {
   entries.forEach(entry => {
     if (!entry.totalHours || entry.status !== 'approved') return
     
-    const date = entry.clockIn instanceof Date ? entry.clockIn : new Date(entry.clockIn)
+    const date = entry.clockIn instanceof Date 
+      ? entry.clockIn 
+      : (entry.clockIn?.toDate ? entry.clockIn.toDate() : new Date(entry.clockIn as any))
     const weekStart = getWeekStart(date)
     const weekKey = weekStart.toISOString()
     

@@ -1,6 +1,6 @@
 // Dynamic payroll expense synchronization
 // Syncs job payroll costs with actual hours worked from time entries
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from './config'
 import { getTimeEntries, calculateWeeklyHours } from './timeTracking'
 import { getAllEmployees, Employee } from './employees'
@@ -32,7 +32,7 @@ export async function calculateActualPayrollForJob(jobId: string): Promise<JobPa
   try {
     // Get job data
     const jobRef = doc(db, 'jobs', jobId)
-    const jobDoc = await jobRef.get()
+    const jobDoc = await getDoc(jobRef)
     
     if (!jobDoc.exists()) {
       throw new Error('Job not found')
@@ -156,7 +156,7 @@ export async function syncPayrollCostForJob(jobId: string): Promise<void> {
     const payrollData = await calculateActualPayrollForJob(jobId)
     
     const jobRef = doc(db, 'jobs', jobId)
-    const jobDoc = await jobRef.get()
+    const jobDoc = await getDoc(jobRef)
     
     if (!jobDoc.exists()) {
       throw new Error('Job not found')

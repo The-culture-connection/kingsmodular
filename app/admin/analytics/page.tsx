@@ -457,7 +457,7 @@ export default function AdminAnalyticsPage() {
             <StatusSelect
               value={statusFilter}
               onChange={setStatusFilter}
-              includeAll={true}
+              excludeAll={false}
             />
           </div>
         </div>
@@ -487,7 +487,7 @@ export default function AdminAnalyticsPage() {
                   border: '1px solid rgba(255,255,255,0.2)',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number) => `$${value.toLocaleString()}`}
+                formatter={(value: number | undefined) => value ? `$${value.toLocaleString()}` : '$0'}
               />
               <Legend />
               <Line 

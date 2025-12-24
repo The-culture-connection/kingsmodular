@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/lib/toast-context'
 import { getGasPricingConfig, updateGasPricingConfig, GasPricingConfig } from '@/lib/firebase/pricingConfig'
-import { calculateAndUpdateGasForJob } from '@/lib/firebase/gasPricing'
+// Removed direct import - will use API route instead
 
 export default function PricingEnginePage() {
   const { showToast } = useToast()
@@ -53,7 +53,7 @@ export default function PricingEnginePage() {
 
     try {
       setIsRecalculating(true)
-      // Get all jobs from Firestore
+      // Get all jobs from Firestore using client SDK
       const { collection, getDocs } = await import('firebase/firestore')
       const { db } = await import('@/lib/firebase/config')
       const jobsRef = collection(db, 'jobs')
@@ -62,9 +62,21 @@ export default function PricingEnginePage() {
       let successCount = 0
       let errorCount = 0
 
+      // Use API route instead of direct import to avoid firebase-admin in client bundle
       for (const doc of snapshot.docs) {
         try {
-          await calculateAndUpdateGasForJob(doc.id)
+          const response = await fetch('/api/jobs/calculate-gas', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ jobId: doc.id }),
+          })
+          
+          if (!response.ok) {
+            throw new Error(`API returned ${response.status}`)
+          }
+          
           successCount++
         } catch (error) {
           console.error(`Error recalculating job ${doc.id}:`, error)

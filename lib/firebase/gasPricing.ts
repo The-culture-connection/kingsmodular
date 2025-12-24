@@ -288,14 +288,20 @@ export async function findPriorJob(
       }
     })
     
+    let bestMatchForLog: { jobId: string; location: string; endDate: string } | null = null
+    if (bestMatch !== null) {
+      const match = bestMatch as { jobId: string; location: string; endDate: Date }
+      bestMatchForLog = {
+        jobId: match.jobId,
+        location: match.location,
+        endDate: match.endDate.toISOString(),
+      }
+    }
+    
     console.log(`${logPrefix} Prior job lookup complete:`, {
       candidatesChecked,
       candidatesInWindow,
-      bestMatch: bestMatch ? {
-        jobId: bestMatch.jobId,
-        location: bestMatch.location,
-        endDate: bestMatch.endDate.toISOString(),
-      } : null,
+      bestMatch: bestMatchForLog,
     })
     
     return bestMatch
@@ -317,7 +323,7 @@ export async function findPriorJob(
 export async function findPriorJobAdmin(
   startDate: Date,
   excludeJobId?: string,
-  adminDb?: admin.firestore.Firestore
+  adminDb?: any
 ): Promise<{ jobId: string; location: string; endDate: Date } | null> {
   const logPrefix = '🔍 [FIND_PRIOR_JOB_ADMIN]'
   console.log(`${logPrefix} Starting prior job lookup (Admin SDK):`, {
@@ -362,7 +368,7 @@ export async function findPriorJobAdmin(
     let candidatesChecked = 0
     let candidatesInWindow = 0
     
-    snapshot.forEach((doc) => {
+    snapshot.forEach((doc: any) => {
       if (doc.id === excludeJobId) {
         console.log(`${logPrefix} Skipping excluded job: ${doc.id}`)
         return
@@ -418,14 +424,20 @@ export async function findPriorJobAdmin(
       }
     })
     
+    let bestMatchForLogAdmin: { jobId: string; location: string; endDate: string } | null = null
+    if (bestMatch !== null) {
+      const match = bestMatch as { jobId: string; location: string; endDate: Date }
+      bestMatchForLogAdmin = {
+        jobId: match.jobId,
+        location: match.location,
+        endDate: match.endDate.toISOString(),
+      }
+    }
+    
     console.log(`${logPrefix} Prior job lookup complete:`, {
       candidatesChecked,
       candidatesInWindow,
-      bestMatch: bestMatch ? {
-        jobId: bestMatch.jobId,
-        location: bestMatch.location,
-        endDate: bestMatch.endDate.toISOString(),
-      } : null,
+      bestMatch: bestMatchForLogAdmin,
     })
     
     return bestMatch
@@ -635,7 +647,7 @@ export async function calculateGasForJobItemAdmin(
   jobItem: any,
   jobStartDate: Date,
   currentJobId?: string,
-  adminDb?: admin.firestore.Firestore
+  adminDb?: any
 ): Promise<GasCalculation | null> {
   const logPrefix = '🟡 [GAS_CALC_ITEM_ADMIN]'
   console.log(`${logPrefix} ========================================`)
@@ -1204,7 +1216,7 @@ export async function findAffectedJobsForRecalculation(
   newJobId: string,
   newJobStartDate: Date,
   newJobEndDate: Date,
-  adminDb?: admin.firestore.Firestore
+  adminDb?: any
 ): Promise<string[]> {
   const logPrefix = '🔍 [FIND_AFFECTED_JOBS]'
   console.log(`${logPrefix} ========================================`)
@@ -1241,7 +1253,7 @@ export async function findAffectedJobsForRecalculation(
       .where('status', 'in', ['pending', 'approved', 'outstanding', 'in_progress', 'scheduled'])
       .get()
     
-    jobsAfterQuery.forEach((doc) => {
+    jobsAfterQuery.forEach((doc: any) => {
       if (doc.id === newJobId) return
       
       const data = doc.data()

@@ -62,18 +62,32 @@ export default function EmployeeHoursPage() {
         const start = new Date(startDate).getTime()
         const end = new Date(endDate).getTime()
         allEntries = allEntries.filter(entry => {
-          const entryTime = entry.clockIn instanceof Date 
-            ? entry.clockIn.getTime() 
-            : new Date(entry.clockIn).getTime()
+          let entryTime: number
+          if (entry.clockIn instanceof Date) {
+            entryTime = entry.clockIn.getTime()
+          } else if (entry.clockIn && typeof entry.clockIn === 'object' && 'toDate' in entry.clockIn) {
+            // Firestore Timestamp
+            entryTime = (entry.clockIn as any).toDate().getTime()
+          } else {
+            entryTime = new Date(entry.clockIn as string | number).getTime()
+          }
           return entryTime >= start && entryTime <= end
         })
       }
 
       // Sort by clockIn date descending
       allEntries.sort((a, b) => {
-        const aTime = a.clockIn instanceof Date ? a.clockIn.getTime() : new Date(a.clockIn).getTime()
-        const bTime = b.clockIn instanceof Date ? b.clockIn.getTime() : new Date(b.clockIn).getTime()
-        return bTime - aTime
+        const getTime = (clockIn: Date | string | number | any): number => {
+          if (clockIn instanceof Date) {
+            return clockIn.getTime()
+          } else if (clockIn && typeof clockIn === 'object' && 'toDate' in clockIn) {
+            // Firestore Timestamp
+            return (clockIn as any).toDate().getTime()
+          } else {
+            return new Date(clockIn as string | number).getTime()
+          }
+        }
+        return getTime(b.clockIn) - getTime(a.clockIn)
       })
 
       setTimeEntries(allEntries)
@@ -121,6 +135,17 @@ export default function EmployeeHoursPage() {
   const getEmployeeName = (employeeId: string): string => {
     const employee = employees.find(emp => emp.uid === employeeId)
     return employee?.name || employeeId
+  }
+
+  const toDate = (value: Date | string | number | any): Date => {
+    if (value instanceof Date) {
+      return value
+    } else if (value && typeof value === 'object' && 'toDate' in value) {
+      // Firestore Timestamp
+      return (value as any).toDate()
+    } else {
+      return new Date(value as string | number)
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -240,12 +265,8 @@ export default function EmployeeHoursPage() {
       ) : (
         <div className="space-y-4">
           {timeEntries.map((entry) => {
-            const clockInTime = entry.clockIn instanceof Date 
-              ? entry.clockIn 
-              : new Date(entry.clockIn)
-            const clockOutTime = entry.clockOut 
-              ? (entry.clockOut instanceof Date ? entry.clockOut : new Date(entry.clockOut))
-              : null
+            const clockInTime = toDate(entry.clockIn)
+            const clockOutTime = entry.clockOut ? toDate(entry.clockOut) : null
             const isPending = entry.status === 'pending_approval'
             const isActive = entry.status === 'active'
 
@@ -359,9 +380,7 @@ export default function EmployeeHoursPage() {
                   <div className="mt-4 pt-4 border-t border-accent/10">
                     <p className="text-xs text-foreground/70">
                       {entry.status === 'approved' ? 'Approved' : 'Rejected'} by {getEmployeeName(entry.approvedBy)} on{' '}
-                      {entry.approvedAt instanceof Date
-                        ? entry.approvedAt.toLocaleDateString()
-                        : new Date(entry.approvedAt).toLocaleDateString()}
+                      {entry.approvedAt ? toDate(entry.approvedAt).toLocaleDateString() : ''}
                     </p>
                   </div>
                 )}

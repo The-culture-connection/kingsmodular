@@ -13,8 +13,19 @@ const nextConfig = {
         tls: false,
         fs: false,
         child_process: false,
+        http2: false,
         'firebase-admin': false,
       }
+      
+      // Ignore Node.js protocol imports (node:events, node:process, etc.)
+      config.externals = config.externals || []
+      config.externals.push({
+        'node:events': 'commonjs events',
+        'node:process': 'commonjs process',
+        'node:stream': 'commonjs stream',
+        'node:util': 'commonjs util',
+        'node:http2': 'commonjs http2',
+      })
     }
     return config
   },

@@ -282,8 +282,8 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
       endDate: jobEndDate || parentEndDateStr,
       startDateTs: jobStartInfo.date || undefined,
       endDateTs: jobEndInfo.date || undefined,
-      monthKey: jobStartInfo.monthKey || null,
-      weekKey: jobStartInfo.weekKey || null,
+      monthKey: jobStartInfo.monthKey || undefined,
+      weekKey: jobStartInfo.weekKey || undefined,
       
       status: jobStatus,
       jobLifecycle: jobStatus, // For now, use status as lifecycle
@@ -322,6 +322,7 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
     const startDateInfo = parseDateAndGenerateKeys(parentStartDateStr)
     const endDateInfo = parseDateAndGenerateKeys(parentEndDateStr)
     
+    const parentMileagePayrollCost = costData.mileagePayrollCost || 0
     const revenue = docData.totalPrice ?? docData.revenue ?? 0
     const allocated = allocateCosts(
       revenue,
@@ -331,6 +332,7 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
         gasCost: parentGasCost,
         materialsCost: parentMaterialsCost,
         payrollCost: parentPayrollCost,
+        mileagePayrollCost: parentMileagePayrollCost,
       }
     )
     
@@ -351,8 +353,8 @@ function flattenJobDocument(docId: string, docData: any): JobAnalyticsRow[] {
       endDate: parentEndDateStr,
       startDateTs: startDateInfo.date || undefined,
       endDateTs: endDateInfo.date || undefined,
-      monthKey: startDateInfo.monthKey || null,
-      weekKey: startDateInfo.weekKey || null,
+      monthKey: startDateInfo.monthKey || undefined,
+      weekKey: startDateInfo.weekKey || undefined,
       
       status: parentStatus,
       jobLifecycle: parentStatus,
@@ -441,8 +443,10 @@ export async function getRevenueAnalytics(filters: AnalyticsFilters = {}): Promi
     console.log(`${logPrefix} Step 3: Flattening documents into analytics rows...`)
     const allRows: JobAnalyticsRow[] = []
     
-    snapshot.forEach((doc, index) => {
-      console.log(`${logPrefix}   Processing document ${index + 1}/${snapshot.size}:`, doc.id)
+    let docIndex = 0
+    snapshot.forEach((doc) => {
+      docIndex++
+      console.log(`${logPrefix}   Processing document ${docIndex}/${snapshot.size}:`, doc.id)
       const docData = doc.data()
       console.log(`${logPrefix}     Document data keys:`, Object.keys(docData))
       console.log(`${logPrefix}     Has jobs array:`, !!docData.jobs)
