@@ -11,7 +11,7 @@ export default function AdminIntegrationsPage() {
 
       <div className="bg-white rounded-lg shadow-sm border p-12">
         <EmptyState
-          icon={Plug}
+          icon={<Plug className="h-12 w-12" />}
           title="Integrations"
           description="Connect with accounting software, payment processors, and other tools."
         />

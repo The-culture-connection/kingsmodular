@@ -374,14 +374,18 @@ export async function updateJobData(jobId: string, updates: {
   hoursPerDay?: number
   payrollCost?: number
   materialsCost?: number
+  gasCost?: number
   materials?: { materialId: string; name: string; quantity: number; unitCost: number; totalCost: number }[]
   payroll?: { employeeId: string; employeeName: string; hourlyRate: number; hours: number; totalCost: number }[]
+  jobs?: any[]
+  totalPrice?: number
   Cost?: {
     hoursPerDay?: number
     materialsCost: number
     materials: { materialId: string; name: string; quantity: number; unitCost: number; totalCost: number }[]
     payrollCost: number
     payroll: { employeeId: string; employeeName: string; hourlyRate: number; hours: number; totalCost: number }[]
+    gasCost?: number
     totalCost: number
   }
 }): Promise<void> {
@@ -416,25 +420,50 @@ export async function updateJobData(jobId: string, updates: {
         costUpdate.payroll = updates.payroll ?? existingCost.payroll ?? []
       }
       
+      // Update gas cost if provided
+      if (updates.gasCost !== undefined) {
+        costUpdate.gasCost = updates.gasCost
+      }
+      
       // Calculate total cost
-      costUpdate.totalCost = (costUpdate.materialsCost || 0) + (costUpdate.payrollCost || 0)
+      costUpdate.totalCost = (costUpdate.materialsCost || 0) + (costUpdate.payrollCost || 0) + (costUpdate.gasCost || 0)
     }
     
     // Prepare update data - save materials and payroll arrays at top level AND in Cost object
-    const { materials, payroll, Cost, hoursPerDay, ...otherUpdates } = updates
+    const { materials, payroll, Cost, hoursPerDay, jobs, totalPrice, gasCost, ...otherUpdates } = updates
+    
+    // Filter out undefined values from otherUpdates
+    const filteredOtherUpdates: any = {}
+    Object.keys(otherUpdates).forEach(key => {
+      if (otherUpdates[key as keyof typeof otherUpdates] !== undefined) {
+        filteredOtherUpdates[key] = otherUpdates[key as keyof typeof otherUpdates]
+      }
+    })
+    
     const updateData: any = {
-      ...otherUpdates,
+      ...filteredOtherUpdates,
       // Save arrays at top level for easy access
       materials: costUpdate.materials || [],
       payroll: costUpdate.payroll || [],
       materialsCost: costUpdate.materialsCost || 0,
       payrollCost: costUpdate.payrollCost || 0,
+      gasCost: costUpdate.gasCost || 0,
       // Save hours per day if provided
       ...(hoursPerDay !== undefined && { hoursPerDay }),
+      // Save jobs and totalPrice if provided
+      ...(jobs !== undefined && { jobs }),
+      ...(totalPrice !== undefined && { totalPrice }),
       // Save Cost object
       Cost: costUpdate,
       updatedAt: serverTimestamp(),
     }
+    
+    // Final filter to remove any undefined values that might have slipped through
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key]
+      }
+    })
     
     await updateDoc(jobRef, updateData)
     console.log('Updated job data:', { jobId, costUpdate, updateData })

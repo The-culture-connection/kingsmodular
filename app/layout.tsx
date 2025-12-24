@@ -2,8 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import localFont from 'next/font/local'
 import './globals.css'
-import { AuthProvider } from '@/lib/auth-context'
-import { ToastProvider } from '@/lib/toast-context'
+import { Providers } from './providers'
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -43,11 +42,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${gotham.variable}`}>
       <body className="font-sans antialiased">
-        <AuthProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
-        </AuthProvider>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   )

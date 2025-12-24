@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     // Generate HTML with invoice and photos
     const htmlContent = generateInvoiceWithPhotosHtml({
       invoice: estimate,
-      jobNumber: jobNumber || estimate.id.substring(0, 8),
+      jobNumber: jobNumber || (estimate.id ? estimate.id.substring(0, 8) : 'UNKNOWN'),
       companyName: companyName || estimate.customerCompanyName || estimate.customerEmail,
       photoUrls: photosToUse,
     })

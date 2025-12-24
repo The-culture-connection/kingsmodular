@@ -86,3 +86,16 @@ export function Modal({ isOpen, onClose, title, children, className, size = 'md'
   )
 }
 
+interface ModalFooterProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function ModalFooter({ children, className }: ModalFooterProps) {
+  return (
+    <div className={cn('flex items-center justify-end gap-3 pt-4 mt-6 border-t border-accent/20', className)}>
+      {children}
+    </div>
+  )
+}
+

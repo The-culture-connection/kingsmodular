@@ -11,7 +11,7 @@ export default function AdminAnalyticsPage() {
 
       <div className="bg-white rounded-lg shadow-sm border p-12">
         <EmptyState
-          icon={BarChart3}
+          icon={<BarChart3 className="h-12 w-12" />}
           title="Analytics dashboard"
           description="Charts, graphs, and insights about your projects, revenue, and operations will appear here."
         />

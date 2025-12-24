@@ -11,7 +11,7 @@ export default function AdminJobCostingPage() {
 
       <div className="bg-white rounded-lg shadow-sm border p-12">
         <EmptyState
-          icon={DollarSign}
+          icon={<DollarSign className="h-12 w-12" />}
           title="Job costing dashboard"
           description="Track labor, materials, and overhead costs for all your projects here."
         />

@@ -261,17 +261,14 @@ export async function POST(req: Request) {
     
     try {
       const invoiceNumber = estimate.id?.slice(0, 8).toUpperCase() || "INV-" + Date.now();
+      const fileName = `invoices/${invoiceNumber}.pdf`;
       console.log(`[${requestId}] Attempting to upload PDF to Firebase Storage...`, {
         invoiceNumber: invoiceNumber,
         pdfSize: pdfBuffer.length,
         customerId: customerId
       });
       const uploadStartTime = Date.now();
-      const uploadResult = await uploadInvoicePdf({
-        invoiceNumber,
-        pdfBuffer,
-        customerId,
-      });
+      const uploadResult = await uploadInvoicePdf(pdfBuffer, fileName);
       const uploadDuration = Date.now() - uploadStartTime;
       signedUrl = uploadResult.signedUrl;
       filePath = uploadResult.filePath;

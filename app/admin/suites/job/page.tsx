@@ -718,23 +718,46 @@ export default function JobSuitePage() {
   }
 
   // Calculate financials
-  const selectedJobFinancials = selectedJob ? {
-    revenue: selectedJob.revenue || 0,
-    materialsCost: (selectedJob as any).Cost?.materialsCost ?? selectedJob.materialsCost ?? 0,
-    payrollCost: (selectedJob as any).Cost?.payrollCost ?? selectedJob.payrollCost ?? 0,
-    totalCost: (selectedJob as any).Cost?.totalCost ?? ((selectedJob.materialsCost || 0) + (selectedJob.payrollCost || 0)),
-    profit: (selectedJob.revenue || 0) - ((selectedJob as any).Cost?.totalCost ?? ((selectedJob.materialsCost || 0) + (selectedJob.payrollCost || 0))),
-    margin: selectedJob.revenue > 0 
-      ? (((selectedJob.revenue || 0) - ((selectedJob as any).Cost?.totalCost ?? ((selectedJob.materialsCost || 0) + (selectedJob.payrollCost || 0)))) / selectedJob.revenue) * 100
-      : 0,
-    healthColor: (() => {
-      const profit = (selectedJob.revenue || 0) - ((selectedJob as any).Cost?.totalCost ?? ((selectedJob.materialsCost || 0) + (selectedJob.payrollCost || 0)))
-      const margin = selectedJob.revenue > 0 ? (profit / selectedJob.revenue) * 100 : 0
-      if (profit > 0 && margin > 20) return 'text-green-400'
-      if (profit > 0 && margin > 0) return 'text-yellow-400'
-      return 'text-red-400'
-    })()
-  } : null
+  const selectedJobFinancials = selectedJob ? (() => {
+    const costData = (selectedJob as any).Cost || {}
+    const materialsCost = costData.materialsCost ?? selectedJob.materialsCost ?? 0
+    const payrollCost = costData.payrollCost ?? selectedJob.payrollCost ?? 0
+    const gasCost = costData.gasCost ?? (selectedJob as any).gasCost ?? 0
+    const totalCost = costData.totalCost ?? (materialsCost + payrollCost + gasCost)
+    const revenue = selectedJob.revenue || 0
+    const profit = revenue - totalCost
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0
+    
+    const financials = {
+      revenue,
+      materialsCost,
+      payrollCost,
+      gasCost,
+      totalCost,
+      profit,
+      margin,
+      healthColor: (() => {
+        if (profit > 0 && margin > 20) return 'text-green-400'
+        if (profit > 0 && margin > 0) return 'text-yellow-400'
+        return 'text-red-400'
+      })()
+    }
+    
+    console.log('📈 [JOB SUITE] selectedJobFinancials calculated:', {
+      jobId: selectedJob.id,
+      revenue,
+      materialsCost,
+      payrollCost,
+      gasCost,
+      totalCost,
+      profit,
+      margin,
+      costData,
+      selectedJobGasCost: (selectedJob as any).gasCost,
+    })
+    
+    return financials
+  })() : null
 
   return (
     <div className="p-6 md:p-8">
@@ -1479,7 +1502,17 @@ export default function JobSuitePage() {
                         const materialsCost = costData.materialsCost ?? selectedJob.materialsCost ?? 0
                         const payroll = costData.payroll || selectedJob.payroll || []
                         const payrollCost = costData.payrollCost ?? selectedJob.payrollCost ?? 0
-                        const totalCost = costData.totalCost ?? (materialsCost + payrollCost)
+                        const gasCost = costData.gasCost ?? (selectedJob as any).gasCost ?? 0
+                        const totalCost = costData.totalCost ?? (materialsCost + payrollCost + gasCost)
+                        
+                        console.log('📊 [FINANCIALS TAB] Cost breakdown:', {
+                          materialsCost,
+                          payrollCost,
+                          gasCost,
+                          totalCost,
+                          costData,
+                          selectedJobGasCost: (selectedJob as any).gasCost,
+                        })
                         
                         return (
                           <>
@@ -1530,6 +1563,13 @@ export default function JobSuitePage() {
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-foreground/70">Payroll Cost</span>
                                 <span className="text-foreground/70">${payrollCost.toLocaleString()}</span>
+                              </div>
+                            )}
+                            
+                            {gasCost > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-foreground/70">Gas Cost</span>
+                                <span className="text-foreground/70">${gasCost.toLocaleString()}</span>
                               </div>
                             )}
                             

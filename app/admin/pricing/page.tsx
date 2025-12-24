@@ -18,7 +18,7 @@ export default function AdminPricingPage() {
 
       <div className="bg-white rounded-lg shadow-sm border p-12">
         <EmptyState
-          icon={Tag}
+          icon={<Tag className="h-12 w-12" />}
           title="Pricing management"
           description="Create and manage pricing templates for labor, materials, and services."
         />

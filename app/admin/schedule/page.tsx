@@ -11,7 +11,7 @@ export default function AdminSchedulePage() {
 
       <div className="bg-white rounded-lg shadow-sm border p-12">
         <EmptyState
-          icon={Calendar}
+          icon={<Calendar className="h-12 w-12" />}
           title="Schedule view coming soon"
           description="Calendar and timeline views for managing project schedules will be available here."
         />

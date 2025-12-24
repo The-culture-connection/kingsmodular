@@ -11,7 +11,7 @@ export default function CustomerMessagesPage() {
 
       <div className="bg-white rounded-lg shadow-sm border p-12">
         <EmptyState
-          icon={MessageSquare}
+          icon={<MessageSquare className="h-12 w-12" />}
           title="No messages"
           description="Project updates and messages from your team will appear here."
         />

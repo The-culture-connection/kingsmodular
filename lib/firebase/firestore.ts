@@ -346,6 +346,7 @@ export async function createPendingEstimate(estimate: Omit<PendingEstimate, 'id'
         materials: autoMaterials,
         payrollCost: 0,
         payroll: [],
+        gasCost: 0, // Will be calculated after job is created
         totalCost: materialsCost,
         hoursPerDay: 10, // Default hours per day
       }
@@ -356,9 +357,48 @@ export async function createPendingEstimate(estimate: Omit<PendingEstimate, 'id'
         materialId: m.materialId,
         quantity: m.quantity,
       }))
+    } else {
+      // Initialize Cost object even if no materials
+      estimateData.Cost = {
+        materialsCost: 0,
+        materials: [],
+        payrollCost: 0,
+        payroll: [],
+        gasCost: 0, // Will be calculated after job is created
+        totalCost: 0,
+        hoursPerDay: 10,
+      }
     }
     
     await setDoc(newJobRef, estimateData)
+    
+    // Calculate gas pricing after job is created (via API route for server-side execution)
+    console.log('🔵 [FIRESTORE] Starting gas calculation for new job:', newJobRef.id)
+    
+    // Use setTimeout to make this non-blocking and run after job creation completes
+    setTimeout(async () => {
+      try {
+        // Call API route instead of direct function to ensure server-side execution
+        // Use relative URL for same-origin requests
+        const response = await fetch('/api/jobs/calculate-gas', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ jobId: newJobRef.id }),
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Failed to calculate gas')
+        }
+        
+        console.log('✅ [FIRESTORE] Gas calculation completed for job:', newJobRef.id)
+      } catch (gasError) {
+        // Non-critical error - log but don't fail job creation
+        console.error('❌ [FIRESTORE] Failed to calculate gas pricing (non-critical):', gasError)
+      }
+    }, 100) // Small delay to ensure job document is fully written
     
     // Also save to user's subcollection for backward compatibility during transition
     // TODO: Remove this once fully migrated to jobs collection

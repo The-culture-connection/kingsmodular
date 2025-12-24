@@ -102,7 +102,7 @@ export default function CreateJobPage() {
           end: endDateObj.toISOString().split('T')[0],
         },
         location: fullLocation,
-        status: 'draft',
+        status: 'pending',
       })
 
       showToast('Job created successfully!', 'success')
