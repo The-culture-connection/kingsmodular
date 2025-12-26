@@ -1770,7 +1770,7 @@ export default function JobSuitePage() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-foreground/70">Status:</span>
-                        <span className="ml-2 text-foreground">{selectedJob.status}</span>
+                        <span className="ml-2 text-foreground">{getStatusDisplayLabel(selectedJob.status)}</span>
                       </div>
                       <div>
                         <span className="text-foreground/70">Start Date:</span>
@@ -1784,6 +1784,23 @@ export default function JobSuitePage() {
                         <span className="text-foreground/70">Location:</span>
                         <span className="ml-2 text-foreground">{selectedJob.location}</span>
                       </div>
+                      {(() => {
+                        // Calculate total miles from job items
+                        const totalMiles = (selectedJob as any).totalMiles || 
+                          (selectedJob.jobs?.reduce((sum: number, job: any) => {
+                            return sum + (job.gas?.distanceMiles || 0)
+                          }, 0) || 0)
+                        
+                        if (totalMiles > 0) {
+                          return (
+                            <div>
+                              <span className="text-foreground/70">Total Miles:</span>
+                              <span className="ml-2 text-foreground font-medium">{totalMiles.toFixed(2)} mi</span>
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
                     </div>
                   </div>
                   

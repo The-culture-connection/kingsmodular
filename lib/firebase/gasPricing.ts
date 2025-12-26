@@ -1082,6 +1082,7 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     const gasCalculations: any[] = []
     let totalGasCost = 0
     let totalGasSurcharge = 0
+    let totalMiles = 0
     
     const jobs = job.jobs || []
     console.log(`${logPrefix} Processing ${jobs.length} job item(s)`)
@@ -1107,6 +1108,7 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
         gasCalculations.push(gasCalc)
         totalGasCost += gasCalc.expenseCost
         totalGasSurcharge += gasCalc.customerSurcharge
+        totalMiles += gasCalc.distanceMiles
         console.log(`${logPrefix} ✅ Job item ${i + 1} gas calculated:`, {
           expenseCost: `$${gasCalc.expenseCost.toFixed(2)}`,
           customerSurcharge: `$${gasCalc.customerSurcharge.toFixed(2)}`,
@@ -1129,6 +1131,7 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     console.log(`${logPrefix} Step 4 complete - Summary:`, {
       totalGasCost: `$${totalGasCost.toFixed(2)}`,
       totalGasSurcharge: `$${totalGasSurcharge.toFixed(2)}`,
+      totalMiles: `${totalMiles.toFixed(2)} miles`,
       calculationsCount: gasCalculations.filter(g => g !== null).length,
       failedCount: gasCalculations.filter(g => g === null).length,
       note: totalGasCost > 0 
@@ -1187,11 +1190,37 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     console.log(`${logPrefix} Step 7: Updating Cost summary...`)
     const existingCost = job.Cost || {}
     // Always save gas cost, even if 0 (it's an internal expense that should be tracked)
-    const roundedGasCost = Math.round(totalGasCost * 100) / 100
+    const roundedGasCost = Math.round((totalGasCost || 0) * 100) / 100
+    
+    // Ensure all cost values are valid numbers
+    const materialsCost = (existingCost.materialsCost || 0)
+    const payrollCost = (existingCost.payrollCost || 0)
+    const mileagePayrollCost = (existingCost.mileagePayrollCost || 0)
+    
+    // Calculate total cost
+    const calculatedTotalCost = materialsCost + payrollCost + roundedGasCost + mileagePayrollCost
+    const roundedTotalCost = Math.round(calculatedTotalCost * 100) / 100
+    
+    // Validate that totalCost is a valid number
+    if (isNaN(roundedTotalCost) || roundedTotalCost === undefined || roundedTotalCost === null) {
+      console.error(`${logPrefix} ❌ Invalid totalCost calculation:`, {
+        materialsCost,
+        payrollCost,
+        roundedGasCost,
+        mileagePayrollCost,
+        calculatedTotalCost,
+        roundedTotalCost,
+      })
+      throw new Error('Invalid totalCost calculation')
+    }
+    
     const newCost = {
       ...existingCost,
+      materialsCost: materialsCost || 0,
+      payrollCost: payrollCost || 0,
       gasCost: roundedGasCost, // Always include, even if 0
-      totalCost: Math.round(((existingCost.materialsCost || 0) + (existingCost.payrollCost || 0) + roundedGasCost + (existingCost.mileagePayrollCost || 0)) * 100) / 100,
+      mileagePayrollCost: mileagePayrollCost || 0,
+      totalCost: roundedTotalCost,
     }
     
     console.log(`${logPrefix} Gas cost to save:`, {
@@ -1203,9 +1232,9 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     console.log(`${logPrefix} ✅ Cost summary:`, {
       materialsCost: `$${(existingCost.materialsCost || 0).toFixed(2)}`,
       payrollCost: `$${(existingCost.payrollCost || 0).toFixed(2)}`,
-      gasCost: `$${newCost.gasCost.toFixed(2)}`,
-      mileagePayrollCost: `$${newCost.mileagePayrollCost.toFixed(2)}`,
-      totalCost: `$${newCost.totalCost.toFixed(2)}`,
+      gasCost: `$${(newCost.gasCost || 0).toFixed(2)}`,
+      mileagePayrollCost: `$${(newCost.mileagePayrollCost || existingCost.mileagePayrollCost || 0).toFixed(2)}`,
+      totalCost: `$${(newCost.totalCost || 0).toFixed(2)}`,
       previousTotalCost: `$${(existingCost.totalCost || 0).toFixed(2)}`,
     })
     
@@ -1220,11 +1249,14 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     if (updatedJobs !== undefined) {
       updatePayload.jobs = updatedJobs
     }
-    if (newTotalPrice !== undefined) {
+    if (newTotalPrice !== undefined && !isNaN(newTotalPrice)) {
       updatePayload.totalPrice = Math.round(newTotalPrice * 100) / 100
     }
-    // Always include gasCost in update, even if 0 (for expense tracking)
-    updatePayload.gasCost = Math.round(totalGasCost * 100) / 100
+    // Save total miles to job document
+    if (totalMiles !== undefined && !isNaN(totalMiles) && totalMiles > 0) {
+      updatePayload.totalMiles = Math.round(totalMiles * 100) / 100
+      console.log(`${logPrefix} Total miles to save: ${updatePayload.totalMiles.toFixed(2)} miles`)
+    }
     
     // Filter out undefined values recursively (Firestore doesn't allow undefined)
     const cleanedPayload = removeUndefinedValues(updatePayload)
@@ -1238,9 +1270,9 @@ export async function calculateAndUpdateGasForJobAdmin(jobId: string): Promise<v
     console.log(`${logPrefix} ========================================`)
     console.log(`${logPrefix} ✅ Gas calculation completed successfully!`)
     console.log(`${logPrefix} Job ID: ${jobId}`)
-    console.log(`${logPrefix} Total gas cost: $${totalGasCost.toFixed(2)}`)
-    console.log(`${logPrefix} Total customer surcharge: $${totalGasSurcharge.toFixed(2)}`)
-    console.log(`${logPrefix} New total price: $${newTotalPrice.toFixed(2)}`)
+    console.log(`${logPrefix} Total gas cost: $${(totalGasCost || 0).toFixed(2)}`)
+    console.log(`${logPrefix} Total customer surcharge: $${(totalGasSurcharge || 0).toFixed(2)}`)
+    console.log(`${logPrefix} New total price: $${(newTotalPrice || 0).toFixed(2)}`)
     console.log(`${logPrefix} ========================================`)
   } catch (error: any) {
     console.error(`${logPrefix} ========================================`)
