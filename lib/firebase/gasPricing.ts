@@ -707,6 +707,13 @@ export async function calculateGasForJobItemAdmin(
     console.log(`${logPrefix} Step 4: Calculating driving distance...`)
     console.log(`${logPrefix} Route: ${originAddress} → ${destination}`)
     const distanceMiles = await calculateDistanceMiles(originAddress, destination)
+    
+    // Validate distanceMiles is a valid number
+    if (distanceMiles === undefined || distanceMiles === null || isNaN(distanceMiles)) {
+      console.error(`${logPrefix} ❌ Invalid distance (${distanceMiles}) - returning null`)
+      return null
+    }
+    
     console.log(`${logPrefix} ✅ Distance calculated:`, {
       distanceMiles: distanceMiles.toFixed(2),
       distanceMeters: (distanceMiles * 1609.34).toFixed(0),
@@ -719,7 +726,24 @@ export async function calculateGasForJobItemAdmin(
     
     // Step 5: Calculate base pricing
     console.log(`${logPrefix} Step 5: Calculating base pricing...`)
+    
+    // Validate config values
+    if (config.gasPricePerGallon === undefined || config.gasPricePerGallon === null || isNaN(config.gasPricePerGallon)) {
+      console.error(`${logPrefix} ❌ Invalid gasPricePerGallon: ${config.gasPricePerGallon}`)
+      return null
+    }
+    if (config.mpg === undefined || config.mpg === null || isNaN(config.mpg) || config.mpg === 0) {
+      console.error(`${logPrefix} ❌ Invalid mpg: ${config.mpg}`)
+      return null
+    }
+    
     const basePerMile = config.gasPricePerGallon / config.mpg
+    
+    if (basePerMile === undefined || basePerMile === null || isNaN(basePerMile)) {
+      console.error(`${logPrefix} ❌ Invalid basePerMile calculation: ${basePerMile}`)
+      return null
+    }
+    
     console.log(`${logPrefix} Base per mile calculation:`, {
       formula: `${config.gasPricePerGallon} / ${config.mpg}`,
       basePerMile: basePerMile.toFixed(4),
@@ -729,7 +753,18 @@ export async function calculateGasForJobItemAdmin(
     // Step 6: Check if surge applies
     console.log(`${logPrefix} Step 6: Checking surge conditions...`)
     const surgeApplied = config.surge.enabled && distanceMiles > config.surge.milesThreshold
+    
+    if (config.surge.multiplier === undefined || config.surge.multiplier === null || isNaN(config.surge.multiplier)) {
+      console.error(`${logPrefix} ❌ Invalid surge.multiplier: ${config.surge.multiplier}`)
+      return null
+    }
+    
     const surgePerMile = basePerMile * config.surge.multiplier
+    
+    if (surgePerMile === undefined || surgePerMile === null || isNaN(surgePerMile)) {
+      console.error(`${logPrefix} ❌ Invalid surgePerMile calculation: ${surgePerMile}`)
+      return null
+    }
     
     console.log(`${logPrefix} Surge check:`, {
       surgeEnabled: config.surge.enabled,
@@ -744,6 +779,12 @@ export async function calculateGasForJobItemAdmin(
     // Step 7: Calculate costs (SPEC: expenseCost always calculated, surcharge only on surge)
     console.log(`${logPrefix} Step 7: Calculating costs...`)
     const expenseCost = distanceMiles * basePerMile
+    
+    if (expenseCost === undefined || expenseCost === null || isNaN(expenseCost)) {
+      console.error(`${logPrefix} ❌ Invalid expenseCost calculation: ${expenseCost}`)
+      return null
+    }
+    
     console.log(`${logPrefix} Internal expense cost:`, {
       formula: `${distanceMiles.toFixed(2)} * ${basePerMile.toFixed(4)}`,
       expenseCost: expenseCost.toFixed(2),
@@ -757,6 +798,10 @@ export async function calculateGasForJobItemAdmin(
       if (config.pricingMode === 'FULL_SURGE') {
         // SPEC: Customer pays full surge rate
         customerSurcharge = distanceMiles * surgePerMile
+        if (customerSurcharge === undefined || customerSurcharge === null || isNaN(customerSurcharge)) {
+          console.error(`${logPrefix} ❌ Invalid customerSurcharge (FULL_SURGE) calculation: ${customerSurcharge}`)
+          return null
+        }
         console.log(`${logPrefix} Customer surcharge (FULL_SURGE):`, {
           formula: `${distanceMiles.toFixed(2)} * ${surgePerMile.toFixed(4)}`,
           customerSurcharge: customerSurcharge.toFixed(2),
@@ -766,6 +811,10 @@ export async function calculateGasForJobItemAdmin(
       } else {
         // SPEC: INCREMENT_ONLY - customer pays only the increment above base
         customerSurcharge = distanceMiles * (surgePerMile - basePerMile)
+        if (customerSurcharge === undefined || customerSurcharge === null || isNaN(customerSurcharge)) {
+          console.error(`${logPrefix} ❌ Invalid customerSurcharge (INCREMENT_ONLY) calculation: ${customerSurcharge}`)
+          return null
+        }
         console.log(`${logPrefix} Customer surcharge (INCREMENT_ONLY):`, {
           formula: `${distanceMiles.toFixed(2)} * (${surgePerMile.toFixed(4)} - ${basePerMile.toFixed(4)})`,
           increment: (surgePerMile - basePerMile).toFixed(4),
